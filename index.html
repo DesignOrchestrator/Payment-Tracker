@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Payment Tracker</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body { font-family: Arial; margin:0; background:#f4f6f9; }
+.sticky { position:sticky; top:0; background:#fff; padding:20px; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+.container { padding:20px 40px; }
+
+table { border-collapse:collapse; width:100%; background:#fff; margin-bottom:25px;}
+th,td { border:1px solid #ddd; padding:8px; text-align:center;}
+th { background:#222; color:#fff; }
+
+.shortfall { background:#f8d7da; }
+.overpay { background:#d4edda; }
+
+.progress-wrap { background:#e0e0e0; border-radius:20px; height:22px;}
+.progress-bar { height:100%; border-radius:20px; color:#fff; font-size:12px; line-height:22px;}
+
+input,select { padding:6px; margin:5px;}
+button { padding:6px 12px; margin:5px; cursor:pointer;}
+</style>
+</head>
+
+<body>
+
+<div class="sticky">
+
+<h2>Payment Tracker</h2>
+
+<div class="progress-wrap">
+<div id="overallBar" class="progress-bar" style="width:0%;background:#28a745;">0%</div>
+</div>
+
+<hr>
+
+<b>Baseline Import:</b>
+<input type="file" id="baselineFile" accept=".xlsx">
+<button onclick="importBaseline()">Import Baseline</button>
+
+<b>Payment Import:</b>
+<input type="file" id="paymentFile" accept=".xlsx">
+<button onclick="importPayments()">Import Payments</button>
+
+<button onclick="exportExcel()">Export Excel</button>
+<button onclick="clearAll()">Clear All</button>
+
+<hr>
+
+<label>Filter Month:</label>
+<select id="filterMonth" onchange="renderPayments()">
+<option value="">All</option>
+</select>
+
+<label>Filter Bank:</label>
+<select id="filterBank" onchange="renderPayments()">
+<option value="">All</option>
+<option>AMEX</option>
+<option>Citibank</option>
+<option>DBS</option>
+<option>HSBC</option>
+<option>SCB</option>
+<option>Trust</option>
+<option>UOB</option>
+</select>
+
+<hr>
+
+<label>Date:</label>
+<input type="date" id="date">
+
+<label>Bank:</label>
+<select id="bank">
+<option>AMEX</option>
+<option>Citibank</option>
+<option>DBS</option>
+<option>HSBC</option>
+<option>SCB</option>
+<option>Trust</option>
+<option>UOB</option>
+</select>
+
+<label>Amount:</label>
+<input type="number" id="amount" step="0.01">
+
+<label>Month Ref:</label>
+<input type="month" id="monthRef">
+
+<button onclick="addPayment()">Add Payment</button>
+
+</div>
+
+<div class="container">
+
+<h3>Bank Baseline Setup</h3>
+<table id="baselineTable">
+<thead>
+<tr>
+<th>Bank</th>
+<th>Baseline</th>
+<th>Paid</th>
+<th>Remaining</th>
+<th>Progress</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<h3>Payment Records</h3>
+<table id="paymentTable">
+<thead>
+<tr>
+<th>Date</th>
+<th>Month</th>
+<th>Bank</th>
+<th>Amount</th>
+<th>Shortfall/Overpay</th>
+<th>Delete</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+</div>
+
+<script>
+
+const required = {
+"AMEX":162,
+"Citibank":384,
+"DBS":176,
+"HSBC":101,
+"SCB":266.35,
+"Trust":106,
+"UOB":197.68
+};
+
+let payments = JSON.parse(localStorage.getItem("payments")) || [];
+let baseline = JSON.parse(localStorage.getItem("baseline")) || {};
+
+function save(){
+localStorage.setItem("payments",JSON.stringify(payments));
+localStorage.setItem("baseline",JSON.stringify(baseline));
+}
+
+function round2(num){
+return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+function render(){
+updateMonthFilter();
+renderBaseline();
+renderPayments();
+updateOverallProgress();
+}
+
+function updateOverallProgress(){
+let totalBase=0,totalPaid=0;
+Object.keys(required).forEach(bank=>{
+let base=baseline[bank]||0;
+let paid=payments.filter(p=>p.bank===bank)
+.reduce((s,p)=>s+p.amount,0);
+totalBase+=base;
+totalPaid+=paid;
+});
+let percent= totalBase>0 ? round2((totalPaid/totalBase)*100) : 0;
+let bar=document.getElementById("overallBar");
+bar.style.width=percent+"%";
+bar.innerText=percent+"%";
+}
+
+function updateMonthFilter(){
+let current=document.getElementById("filterMonth").value;
+let months=[...new Set(payments.map(p=>p.monthRef))].sort();
+let select=document.getElementById("filterMonth");
+select.innerHTML='<option value="">All</option>';
+months.forEach(m=>select.innerHTML+=`<option value="${m}">${m}</option>`);
+select.value=current;
+}
+
+function renderBaseline(){
+const tbody=document.querySelector("#baselineTable tbody");
+tbody.innerHTML="";
+let totalBase=0,totalPaid=0;
+
+Object.keys(required).forEach(bank=>{
+let base=baseline[bank]||0;
+let paid=round2(payments.filter(p=>p.bank===bank)
+.reduce((s,p)=>s+p.amount,0));
+let remain=round2(base-paid);
+if(remain<0)remain=0;
+let progress=base>0?round2((paid/base)*100):0;
+
+totalBase+=base;
+totalPaid+=paid;
+
+tbody.innerHTML+=`
+<tr>
+<td>${bank}</td>
+<td>${base.toFixed(2)}</td>
+<td>${paid.toFixed(2)}</td>
+<td>${remain.toFixed(2)}</td>
+<td>
+<div class="progress-wrap">
+<div class="progress-bar" style="width:${progress}%;background:#28a745;">
+${progress}%
+</div>
+</div>
+</td>
+</tr>
+`;
+});
+
+tbody.innerHTML+=`
+<tr style="font-weight:bold;background:#f0f0f0;">
+<td>Total</td>
+<td>${totalBase.toFixed(2)}</td>
+<td>${totalPaid.toFixed(2)}</td>
+<td>${(totalBase-totalPaid).toFixed(2)}</td>
+<td></td>
+</tr>
+`;
+}
+
+function renderPayments(){
+const tbody=document.querySelector("#paymentTable tbody");
+tbody.innerHTML="";
+
+let filterMonth=document.getElementById("filterMonth").value;
+let filterBank=document.getElementById("filterBank").value;
+
+let filtered=payments.filter(p=>
+(!filterMonth || p.monthRef===filterMonth) &&
+(!filterBank || p.bank===filterBank)
+);
+
+let sorted=[...filtered].sort((a,b)=>{
+if(a.monthRef===b.monthRef){
+if(a.bank===b.bank) return a.date.localeCompare(b.date);
+return a.bank.localeCompare(b.bank);
+}
+return a.monthRef.localeCompare(b.monthRef);
+});
+
+let running={};
+let total=0;
+
+sorted.forEach(p=>{
+let key=p.bank+"_"+p.monthRef;
+if(!running[key]) running[key]=0;
+running[key]=round2(running[key] + p.amount);
+let diff=round2(running[key] - required[p.bank]);
+let rowClass="";
+if(diff<0) rowClass="shortfall";
+if(diff>0) rowClass="overpay";
+total+=p.amount;
+
+tbody.innerHTML+=`
+<tr class="${rowClass}">
+<td>${p.date}</td>
+<td>${p.monthRef}</td>
+<td>${p.bank}</td>
+<td>${p.amount.toFixed(2)}</td>
+<td>${diff.toFixed(2)}</td>
+<td><button onclick="deleteRow('${p.id}')">X</button></td>
+</tr>
+`;
+});
+
+tbody.innerHTML+=`
+<tr style="font-weight:bold;background:#f0f0f0;">
+<td colspan="3">Total</td>
+<td>${round2(total).toFixed(2)}</td>
+<td colspan="2"></td>
+</tr>
+`;
+}
+
+function addPayment(){
+const date=document.getElementById("date").value;
+const bank=document.getElementById("bank").value;
+const amount=parseFloat(document.getElementById("amount").value);
+const monthRef=document.getElementById("monthRef").value;
+if(!date||!amount||!monthRef){alert("Complete fields");return;}
+payments.push({id:Date.now()+Math.random(),date,bank,amount,monthRef});
+save();
+render();
+}
+
+function deleteRow(id){
+payments=payments.filter(p=>p.id!=id);
+save();
+render();
+}
+
+function importBaseline(){
+const file=document.getElementById("baselineFile").files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=e=>{
+const data=new Uint8Array(e.target.result);
+const wb=XLSX.read(data,{type:'array'});
+const sheet=wb.Sheets[wb.SheetNames[0]];
+const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+rows.forEach(r=>{
+if(r[0] && r[1]) baseline[r[0].trim()]=parseFloat(r[1])||0;
+});
+save();
+render();
+};
+reader.readAsArrayBuffer(file);
+}
+
+function importPayments(){
+const file=document.getElementById("paymentFile").files[0];
+if(!file)return;
+const reader=new FileReader();
+reader.onload=e=>{
+const data=new Uint8Array(e.target.result);
+const wb=XLSX.read(data,{type:'array'});
+const banks=["AMEX","Citibank","DBS","HSBC","SCB","Trust","UOB"];
+const rowsIndex=[6,7,8,9,10,11,12];
+wb.SheetNames.forEach(sheetName=>{
+const sheet=wb.Sheets[sheetName];
+const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+rowsIndex.forEach((r,i)=>{
+if(rows[r]){
+let amount=rows[r][4];
+let dateVal=rows[r][6];
+if(amount && dateVal){
+let date;
+if(typeof dateVal==="number"){
+let utc_days=Math.floor(dateVal-25569);
+let utc_value=utc_days*86400;
+date=new Date(utc_value*1000);
+}else{
+date=new Date(dateVal);
+}
+if(!isNaN(date)){
+let formatted=date.toISOString().substring(0,10);
+let monthRef=formatted.substring(0,7);
+payments.push({id:Date.now()+Math.random(),date:formatted,bank:banks[i],amount:parseFloat(amount),monthRef});
+}
+}
+}
+});
+});
+save();
+render();
+};
+reader.readAsArrayBuffer(file);
+}
+
+function exportExcel(){
+let wb=XLSX.utils.book_new();
+
+// Per month
+let months=[...new Set(payments.map(p=>p.monthRef))];
+months.forEach(month=>{
+let data=[["Date","Bank","Amount","Shortfall/Overpay"]];
+let monthPay=payments.filter(p=>p.monthRef===month);
+let running={};
+monthPay.forEach(p=>{
+let key=p.bank+"_"+p.monthRef;
+if(!running[key])running[key]=0;
+running[key]=round2(running[key]+p.amount);
+let diff=round2(running[key]-required[p.bank]);
+data.push([p.date,p.bank,p.amount,diff]);
+});
+let ws=XLSX.utils.aoa_to_sheet(data);
+ws['!autofilter']={ref:"A1:D"+data.length};
+XLSX.utils.book_append_sheet(wb,ws,month);
+});
+
+// Per bank
+Object.keys(required).forEach(bank=>{
+let data=[["Date","Month","Amount","Shortfall/Overpay"]];
+let bankPay=payments.filter(p=>p.bank===bank);
+let running={};
+bankPay.forEach(p=>{
+let key=p.bank+"_"+p.monthRef;
+if(!running[key])running[key]=0;
+running[key]=round2(running[key]+p.amount);
+let diff=round2(running[key]-required[p.bank]);
+data.push([p.date,p.monthRef,p.amount,diff]);
+});
+let ws=XLSX.utils.aoa_to_sheet(data);
+ws['!autofilter']={ref:"A1:D"+data.length};
+XLSX.utils.book_append_sheet(wb,ws,bank);
+});
+
+// Baseline tab
+let baseData=[["Bank","Baseline"]];
+Object.keys(baseline).forEach(b=>{
+baseData.push([b,baseline[b]]);
+});
+let wsBase=XLSX.utils.aoa_to_sheet(baseData);
+wsBase['!autofilter']={ref:"A1:B"+baseData.length};
+XLSX.utils.book_append_sheet(wb,wsBase,"Baseline");
+
+XLSX.writeFile(wb,"Payment_Tracker.xlsx");
+}
+
+function clearAll(){
+if(confirm("Clear everything?")){
+payments=[];
+baseline={};
+save();
+render();
+}
+}
+
+render();
+
+</script>
+</body>
+</html>
