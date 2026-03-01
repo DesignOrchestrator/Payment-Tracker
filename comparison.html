@@ -76,6 +76,8 @@ let comparisonRows = [];
 let totalBaseline = 0;
 let totalCB = 0;
 let totalDiff = 0;
+let totalChartInstance = null;
+let diffChartInstance = null;
 
 document.getElementById('upload').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -119,12 +121,26 @@ function generateComparison(cbData) {
 
     comparisonRows.push([bank, baselineRemaining, cbOutstanding, diff]);
 
+    let diffText = "";
+    let diffStyle = "";
+
+    if (diff > 0) {
+      diffText = `+${diff.toFixed(2)} (CB More)`;
+      diffStyle = "color:red; font-weight:bold;";
+    } else if (diff < 0) {
+      diffText = `${diff.toFixed(2)} (CB Less)`;
+      diffStyle = "color:green; font-weight:bold;";
+    } else {
+      diffText = `0.00 (Match)`;
+      diffStyle = "color:gray; font-weight:bold;";
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${bank}</td>
       <td>${baselineRemaining.toFixed(2)}</td>
       <td>${cbOutstanding.toFixed(2)}</td>
-      <td>${diff.toFixed(2)}</td>
+      <td style="${diffStyle}">${diffText}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -142,7 +158,10 @@ function generateComparison(cbData) {
 
 function renderCharts() {
 
-  new Chart(document.getElementById("totalChart"), {
+  if (totalChartInstance) totalChartInstance.destroy();
+  if (diffChartInstance) diffChartInstance.destroy();
+
+  totalChartInstance = new Chart(document.getElementById("totalChart"), {
     type: 'doughnut',
     data: {
       labels: ["Baseline Total", "CB Total"],
@@ -152,10 +171,10 @@ function renderCharts() {
     }
   });
 
-  const diffData = comparisonRows.map(r => r[3]);
+  const diffData = comparisonRows.map(r => Math.abs(r[3]));
   const labels = comparisonRows.map(r => r[0]);
 
-  new Chart(document.getElementById("diffChart"), {
+  diffChartInstance = new Chart(document.getElementById("diffChart"), {
     type: 'doughnut',
     data: {
       labels: labels,
