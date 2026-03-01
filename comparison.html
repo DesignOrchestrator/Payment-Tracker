@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Baseline vs CB Comparison</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #222; color: white; }
+    .positive { color: red; font-weight: bold; }
+    .negative { color: green; font-weight: bold; }
+    .summary { margin-top: 20px; font-size: 18px; }
+  </style>
+</head>
+<body>
+
+<h2>Per Bank Comparison (Baseline vs CB)</h2>
+
+<input type="file" id="upload" accept=".xlsx" />
+
+<table id="comparisonTable">
+  <thead>
+    <tr>
+      <th>Bank</th>
+      <th>Baseline Remaining</th>
+      <th>CB Outstanding</th>
+      <th>Difference</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<div class="summary">
+  <p>Total Baseline: <span id="totalBaseline">0</span></p>
+  <p>Total CB: <span id="totalCB">0</span></p>
+  <p>Total Difference: <span id="totalDiff">0</span></p>
+</div>
+
+<script>
+
+// 🔹 MANUALLY SYNC THIS WITH YOUR TRACKER DATA
+// Replace these values with same numbers from your main tracker JS
+const baselineData = {
+  "AMEX": 5662.16,
+  "Citibank": 14701.15,
+  "DBS": 6780.57,
+  "HSBC": 3742.11,
+  "SCB": 8734.24,
+  "Trust": 3734.96,
+  "UOB": 7498.67
+};
+
+document.getElementById('upload').addEventListener('change', function(e) {
+
+  const file = e.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(event) {
+    const data = new Uint8Array(event.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet);
+
+    generateComparison(json);
+  };
+
+  reader.readAsArrayBuffer(file);
+});
+
+function generateComparison(cbData) {
+
+  const tbody = document.querySelector("#comparisonTable tbody");
+  tbody.innerHTML = "";
+
+  let totalBaseline = 0;
+  let totalCB = 0;
+  let totalDiff = 0;
+
+  cbData.forEach(row => {
+
+    const bank = row.Banks || row.Bank;
+    const cbOutstanding = parseFloat(row["CB Outstanding"]);
+
+    const baselineRemaining = baselineData[bank] || 0;
+    const diff = cbOutstanding - baselineRemaining;
+
+    totalBaseline += baselineRemaining;
+    totalCB += cbOutstanding;
+    totalDiff += diff;
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${bank}</td>
+      <td>${baselineRemaining.toFixed(2)}</td>
+      <td>${cbOutstanding.toFixed(2)}</td>
+      <td class="${diff > 0 ? 'positive' : 'negative'}">${diff.toFixed(2)}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("totalBaseline").innerText = totalBaseline.toFixed(2);
+  document.getElementById("totalCB").innerText = totalCB.toFixed(2);
+  document.getElementById("totalDiff").innerText = totalDiff.toFixed(2);
+}
+
+</script>
+
+</body>
+</html>
