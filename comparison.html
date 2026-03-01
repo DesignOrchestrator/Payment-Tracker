@@ -1,47 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Baseline vs CB Comparison</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #222; color: white; }
-    .positive { color: red; font-weight: bold; }
-    .negative { color: green; font-weight: bold; }
-    .summary { margin-top: 20px; font-size: 18px; }
-  </style>
+<meta charset="UTF-8">
+<title>Baseline vs CB Comparison</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Arial; padding: 20px; background:#f4f6f9;}
+table { border-collapse: collapse; width: 100%; margin-top: 20px; background:white;}
+th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+th { background: #111; color: white; }
+button { padding:8px 12px; margin-top:15px; cursor:pointer; }
+.summary { margin-top: 20px; font-size: 18px; font-weight:bold;}
+.chart-container { width: 350px; display:inline-block; margin:20px;}
+.insight { margin-top:20px; background:white; padding:15px; }
+</style>
 </head>
+
 <body>
 
 <h2>Per Bank Comparison (Baseline vs CB)</h2>
 
 <input type="file" id="upload" accept=".xlsx" />
+<button onclick="exportExcel()">Export to Excel</button>
 
 <table id="comparisonTable">
-  <thead>
-    <tr>
-      <th>Bank</th>
-      <th>Baseline Remaining</th>
-      <th>CB Outstanding</th>
-      <th>Difference</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
+<thead>
+<tr>
+<th>Bank</th>
+<th>Baseline Remaining</th>
+<th>CB Outstanding</th>
+<th>Difference</th>
+</tr>
+</thead>
+<tbody></tbody>
 </table>
 
 <div class="summary">
-  <p>Total Baseline: <span id="totalBaseline">0</span></p>
-  <p>Total CB: <span id="totalCB">0</span></p>
-  <p>Total Difference: <span id="totalDiff">0</span></p>
+<p>Total Baseline: <span id="totalBaseline">0</span></p>
+<p>Total CB: <span id="totalCB">0</span></p>
+<p>Total Difference: <span id="totalDiff">0</span></p>
 </div>
+
+<div>
+<div class="chart-container">
+<canvas id="totalChart"></canvas>
+</div>
+
+<div class="chart-container">
+<canvas id="diffChart"></canvas>
+</div>
+</div>
+
+<div class="insight" id="insightBox"></div>
 
 <script>
 
-// 🔹 MANUALLY SYNC THIS WITH YOUR TRACKER DATA
-// Replace these values with same numbers from your main tracker JS
 const baselineData = {
   "AMEX": 5662.16,
   "Citibank": 14701.15,
@@ -52,8 +68,12 @@ const baselineData = {
   "UOB": 7498.67
 };
 
-document.getElementById('upload').addEventListener('change', function(e) {
+let comparisonRows = [];
+let totalBaseline = 0;
+let totalCB = 0;
+let totalDiff = 0;
 
+document.getElementById('upload').addEventListener('change', function(e) {
   const file = e.target.files[0];
   const reader = new FileReader();
 
@@ -62,7 +82,6 @@ document.getElementById('upload').addEventListener('change', function(e) {
     const workbook = XLSX.read(data, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet);
-
     generateComparison(json);
   };
 
@@ -74,15 +93,15 @@ function generateComparison(cbData) {
   const tbody = document.querySelector("#comparisonTable tbody");
   tbody.innerHTML = "";
 
-  let totalBaseline = 0;
-  let totalCB = 0;
-  let totalDiff = 0;
+  comparisonRows = [];
+  totalBaseline = 0;
+  totalCB = 0;
+  totalDiff = 0;
 
   cbData.forEach(row => {
 
-    const bank = row.Banks || row.Bank;
+    const bank = row.Banks;
     const cbOutstanding = parseFloat(row["CB Outstanding"]);
-
     const baselineRemaining = baselineData[bank] || 0;
     const diff = cbOutstanding - baselineRemaining;
 
@@ -90,21 +109,79 @@ function generateComparison(cbData) {
     totalCB += cbOutstanding;
     totalDiff += diff;
 
-    const tr = document.createElement("tr");
+    comparisonRows.push([bank, baselineRemaining, cbOutstanding, diff]);
 
+    const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${bank}</td>
       <td>${baselineRemaining.toFixed(2)}</td>
       <td>${cbOutstanding.toFixed(2)}</td>
-      <td class="${diff > 0 ? 'positive' : 'negative'}">${diff.toFixed(2)}</td>
+      <td>${diff.toFixed(2)}</td>
     `;
-
     tbody.appendChild(tr);
   });
 
   document.getElementById("totalBaseline").innerText = totalBaseline.toFixed(2);
   document.getElementById("totalCB").innerText = totalCB.toFixed(2);
   document.getElementById("totalDiff").innerText = totalDiff.toFixed(2);
+
+  renderCharts();
+  renderInsights();
+}
+
+function renderCharts() {
+
+  new Chart(document.getElementById("totalChart"), {
+    type: 'doughnut',
+    data: {
+      labels: ["Baseline Total", "CB Total"],
+      datasets: [{
+        data: [totalBaseline, totalCB]
+      }]
+    }
+  });
+
+  const diffData = comparisonRows.map(r => r[3]);
+  const labels = comparisonRows.map(r => r[0]);
+
+  new Chart(document.getElementById("diffChart"), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: diffData
+      }]
+    }
+  });
+}
+
+function renderInsights() {
+
+  let largestDiff = comparisonRows.sort((a,b)=>b[3]-a[3])[0];
+
+  document.getElementById("insightBox").innerHTML = `
+    <h3>Insights</h3>
+    <p>CB is <strong>${totalDiff.toFixed(2)}</strong> higher than your internal tracker.</p>
+    <p>Largest discrepancy: <strong>${largestDiff[0]}</strong> 
+    (${largestDiff[3].toFixed(2)})</p>
+    <p>CB Total is ${( (totalCB/totalBaseline -1)*100 ).toFixed(2)}% 
+    higher than your baseline.</p>
+  `;
+}
+
+function exportExcel() {
+
+  const ws_data = [
+    ["Bank", "Baseline Remaining", "CB Outstanding", "Difference"],
+    ...comparisonRows,
+    ["TOTAL", totalBaseline, totalCB, totalDiff]
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Comparison");
+
+  XLSX.writeFile(wb, "Baseline_vs_CB_Comparison.xlsx");
 }
 
 </script>
