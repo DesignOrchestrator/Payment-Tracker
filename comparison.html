@@ -12,10 +12,11 @@ body { font-family: Arial; padding: 20px; background:#f4f6f9;}
 table { border-collapse: collapse; width: 100%; margin-top: 20px; background:white;}
 th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
 th { background: #111; color: white; }
-button { padding:8px 12px; margin-top:15px; cursor:pointer; }
+button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
 .summary { margin-top: 20px; font-size: 18px; font-weight:bold;}
 .chart-container { width: 350px; display:inline-block; margin:20px;}
 .insight { margin-top:20px; background:white; padding:15px; }
+.small { font-size:12px; color:gray; margin-top:5px;}
 </style>
 </head>
 
@@ -25,6 +26,9 @@ button { padding:8px 12px; margin-top:15px; cursor:pointer; }
 
 <input type="file" id="upload" accept=".xlsx" />
 <button onclick="exportExcel()">Export to Excel</button>
+<button onclick="clearData()">Clear Saved Data</button>
+
+<div class="small" id="lastUpdated"></div>
 
 <table id="comparisonTable">
 <thead>
@@ -82,6 +86,10 @@ document.getElementById('upload').addEventListener('change', function(e) {
     const workbook = XLSX.read(data, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet);
+
+    localStorage.setItem("cbData", JSON.stringify(json));
+    localStorage.setItem("lastUpdated", new Date().toLocaleString());
+
     generateComparison(json);
   };
 
@@ -125,6 +133,9 @@ function generateComparison(cbData) {
   document.getElementById("totalCB").innerText = totalCB.toFixed(2);
   document.getElementById("totalDiff").innerText = totalDiff.toFixed(2);
 
+  document.getElementById("lastUpdated").innerText =
+    "Last Updated: " + localStorage.getItem("lastUpdated");
+
   renderCharts();
   renderInsights();
 }
@@ -157,15 +168,15 @@ function renderCharts() {
 
 function renderInsights() {
 
-  let largestDiff = comparisonRows.sort((a,b)=>b[3]-a[3])[0];
+  let sorted = [...comparisonRows].sort((a,b)=>b[3]-a[3]);
+  let largestDiff = sorted[0];
 
   document.getElementById("insightBox").innerHTML = `
     <h3>Insights</h3>
-    <p>CB is <strong>${totalDiff.toFixed(2)}</strong> higher than your internal tracker.</p>
+    <p>CB is <strong>${totalDiff.toFixed(2)}</strong> higher than your tracker.</p>
     <p>Largest discrepancy: <strong>${largestDiff[0]}</strong> 
     (${largestDiff[3].toFixed(2)})</p>
-    <p>CB Total is ${( (totalCB/totalBaseline -1)*100 ).toFixed(2)}% 
-    higher than your baseline.</p>
+    <p>CB Total is ${( (totalCB/totalBaseline -1)*100 ).toFixed(2)}% higher than baseline.</p>
   `;
 }
 
@@ -183,6 +194,19 @@ function exportExcel() {
 
   XLSX.writeFile(wb, "Baseline_vs_CB_Comparison.xlsx");
 }
+
+function clearData() {
+  localStorage.removeItem("cbData");
+  localStorage.removeItem("lastUpdated");
+  location.reload();
+}
+
+window.onload = function() {
+  const savedData = localStorage.getItem("cbData");
+  if (savedData) {
+    generateComparison(JSON.parse(savedData));
+  }
+};
 
 </script>
 
