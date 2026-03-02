@@ -30,6 +30,8 @@ td { padding:6px; border-bottom:1px solid #eee; }
 input { width:95%; padding:4px; }
 button { padding:4px 8px; cursor:pointer; }
 
+small { font-size:11px; color:#666; }
+
 .positive { color:#28a745; font-weight:bold; }
 .negative { color:#dc3545; font-weight:bold; }
 
@@ -133,7 +135,7 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 </div>
 
 <div class="advisory">
-<h3>Advisory</h3>
+<h3>Explanation & Advisory</h3>
 <div id="advice"></div>
 </div>
 
@@ -141,21 +143,21 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 
 <script>
 
-// ===== REQUIRED DMP =====
+// ===== DMP BASELINE =====
 const requiredDMP = {
 AMEX:162, Citibank:384, DBS:176,
 HSBC:101, SCB:266.35, Trust:106, UOB:200
 };
 
 // ===== STORAGE =====
-let oneIncomeStore = JSON.parse(localStorage.getItem("fsIncomeRows")) || {};
-let oneExpenseStore = JSON.parse(localStorage.getItem("fsExpenseRows")) || {};
+let incomeStore = JSON.parse(localStorage.getItem("fsIncomeRows")) || {};
+let expenseStore = JSON.parse(localStorage.getItem("fsExpenseRows")) || {};
 let assets = JSON.parse(localStorage.getItem("fsAssets")) || [];
 let manualLiab = JSON.parse(localStorage.getItem("fsManualLiab")) || {};
 
 function saveAll(){
-localStorage.setItem("fsIncomeRows",JSON.stringify(oneIncomeStore));
-localStorage.setItem("fsExpenseRows",JSON.stringify(oneExpenseStore));
+localStorage.setItem("fsIncomeRows",JSON.stringify(incomeStore));
+localStorage.setItem("fsExpenseRows",JSON.stringify(expenseStore));
 localStorage.setItem("fsAssets",JSON.stringify(assets));
 localStorage.setItem("fsManualLiab",JSON.stringify(manualLiab));
 }
@@ -186,7 +188,7 @@ return p.filter(x=>x.monthRef===month)
 .reduce((s,x)=>s+x.amount,0);
 }
 
-function getAutoLiabBreakdown(){
+function getAutoBreakdown(){
 let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
 let payments=JSON.parse(localStorage.getItem("payments"))||[];
 let result=[];
@@ -199,7 +201,7 @@ if(remain>0) result.push({bank,remain});
 return result;
 }
 
-// ===== RENDER =====
+// ===== MAIN RENDER =====
 let incomeChart, balanceChart;
 
 function render(){
@@ -207,63 +209,72 @@ function render(){
 let month=document.getElementById("monthSelect").value;
 
 // Ensure 5 rows
-if(!oneIncomeStore[month]) oneIncomeStore[month]=Array.from({length:5},()=>({name:"",amount:0}));
-if(!oneExpenseStore[month]) oneExpenseStore[month]=Array.from({length:5},()=>({name:"",amount:0}));
+if(!incomeStore[month]) incomeStore[month]=Array.from({length:5},()=>({name:"",amount:0}));
+if(!expenseStore[month]) expenseStore[month]=Array.from({length:5},()=>({name:"",amount:0}));
 
-// Render editable rows
-document.getElementById("incomeRows").innerHTML="";
-oneIncomeStore[month].forEach((r,i)=>{
-document.getElementById("incomeRows").innerHTML+=`
+// Render Income Rows
+document.getElementById("incomeRows").innerHTML=
+incomeStore[month].map((r,i)=>`
 <tr>
 <td><input value="${r.name}" onchange="updateRow('income',${i},'name',this.value)"></td>
 <td><input type="number" value="${r.amount}" onchange="updateRow('income',${i},'amount',this.value)"></td>
-</tr>`;
-});
+</tr>`).join("");
 
-document.getElementById("expenseRows").innerHTML="";
-oneExpenseStore[month].forEach((r,i)=>{
-document.getElementById("expenseRows").innerHTML+=`
+// Render Expense Rows
+document.getElementById("expenseRows").innerHTML=
+expenseStore[month].map((r,i)=>`
 <tr>
 <td><input value="${r.name}" onchange="updateRow('expense',${i},'name',this.value)"></td>
 <td><input type="number" value="${r.amount}" onchange="updateRow('expense',${i},'amount',this.value)"></td>
-</tr>`;
-});
+</tr>`).join("");
 
-// CALCULATIONS
+// Calculations
 let recurring=getRecurring();
 let living=getLiving();
-let oneIncome=oneIncomeStore[month].reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
-let oneExpense=oneExpenseStore[month].reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+let oneIncome=incomeStore[month].reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+let oneExpense=expenseStore[month].reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+
 let totalIncome=recurring+oneIncome;
 let totalExpenses=living+oneExpense;
 
 let required=Object.values(requiredDMP).reduce((s,v)=>s+v,0);
 let actual=getActual(month);
 
-let preDebt=totalIncome-totalExpenses;
-let variance=actual-required;
-let trueCF=totalIncome-totalExpenses-actual;
+let hasActivity = totalIncome!==0 || totalExpenses!==0 || actual!==0;
 
-// DISPLAY
+let preDebt = totalIncome-totalExpenses;
+let variance = hasActivity ? actual-required : null;
+let trueCF = hasActivity ? totalIncome-totalExpenses-actual : null;
+
+// Display
 document.getElementById("recIncome").innerText=recurring.toFixed(2);
 document.getElementById("oneIncome").innerText=oneIncome.toFixed(2);
 document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
 document.getElementById("living").innerText=living.toFixed(2);
 document.getElementById("oneExpense").innerText=oneExpense.toFixed(2);
 document.getElementById("preDebt").innerText=preDebt.toFixed(2);
-document.getElementById("required").innerText=required.toFixed(2);
-document.getElementById("actual").innerText=actual.toFixed(2);
+
+document.getElementById("required").innerText=hasActivity?required.toFixed(2):"—";
+document.getElementById("actual").innerText=hasActivity?actual.toFixed(2):"—";
 
 let varEl=document.getElementById("variance");
+if(variance!==null){
 varEl.innerText=variance.toFixed(2);
 varEl.className=variance>=0?"positive":"negative";
+}else{
+varEl.innerText="—"; varEl.className="";
+}
 
-let cf=document.getElementById("trueCF");
-cf.innerText=trueCF.toFixed(2);
-cf.className=trueCF>=0?"positive":"negative";
+let cfEl=document.getElementById("trueCF");
+if(trueCF!==null){
+cfEl.innerText=trueCF.toFixed(2);
+cfEl.className=trueCF>=0?"positive":"negative";
+}else{
+cfEl.innerText="—"; cfEl.className="";
+}
 
 // ===== BALANCE =====
-let autoBreakdown=getAutoLiabBreakdown();
+let autoBreakdown=getAutoBreakdown();
 let autoTotal=autoBreakdown.reduce((s,x)=>s+x.remain,0);
 let manualTotal=manualLiab.reduce((s,x)=>s+x.value,0);
 let assetTotal=assets.reduce((s,x)=>s+x.value,0);
@@ -271,19 +282,13 @@ let totalLiab=autoTotal+manualTotal;
 let netWorth=assetTotal-totalLiab;
 
 document.getElementById("assetTable").innerHTML=
-assets.map((a,i)=>`
-<tr><td>${a.name}</td><td>${a.value}</td><td><button onclick="deleteAsset(${i})">X</button></td></tr>
-`).join("");
+assets.map((a,i)=>`<tr><td>${a.name}</td><td>${a.value}</td><td><button onclick="deleteAsset(${i})">X</button></td></tr>`).join("");
 
 document.getElementById("manualTable").innerHTML=
-manualLiab.map((l,i)=>`
-<tr><td>${l.name}</td><td>${l.value}</td><td><button onclick="deleteLiab(${i})">X</button></td></tr>
-`).join("");
+manualLiab.map((l,i)=>`<tr><td>${l.name}</td><td>${l.value}</td><td><button onclick="deleteLiab(${i})">X</button></td></tr>`).join("");
 
 document.getElementById("autoTable").innerHTML=
-autoBreakdown.map(a=>`
-<tr><td>${a.bank}</td><td>${a.remain.toFixed(2)}</td></tr>
-`).join("");
+autoBreakdown.map(a=>`<tr><td>${a.bank}</td><td>${a.remain.toFixed(2)}</td></tr>`).join("");
 
 document.getElementById("totalAssets").innerText=assetTotal.toFixed(2);
 document.getElementById("totalLiab").innerText=totalLiab.toFixed(2);
@@ -294,15 +299,22 @@ nw.className=netWorth>=0?"positive":"negative";
 
 // ===== ADVISORY =====
 let advice="";
+if(!hasActivity){
+advice="No activity recorded for this month.";
+}else{
 if(preDebt<0) advice+="⚠ Expenses exceed income.<br>";
 if(variance<0) advice+="⚠ Underpaid DMP.<br>";
 if(variance>0) advice+="✓ Accelerating debt repayment.<br>";
-if(trueCF<0) advice+="⚠ Running deficit.<br>";
-if(preDebt>0 && trueCF>0) advice+="✓ Healthy structure. Build assets.<br>";
+if(trueCF<0) advice+="⚠ Running deficit after payments.<br>";
+if(preDebt>0 && trueCF>0) advice+="✓ Healthy structure. Consider building assets.<br>";
+}
 document.getElementById("advice").innerHTML=advice;
 
 // ===== CHARTS =====
 if(incomeChart) incomeChart.destroy();
+if(balanceChart) balanceChart.destroy();
+
+if(hasActivity){
 incomeChart=new Chart(document.getElementById("incomeChart"),{
 type:'doughnut',
 data:{
@@ -311,7 +323,6 @@ datasets:[{data:[totalExpenses,actual,Math.max(0,totalIncome-totalExpenses-actua
 }
 });
 
-if(balanceChart) balanceChart.destroy();
 balanceChart=new Chart(document.getElementById("balanceChart"),{
 type:'doughnut',
 data:{
@@ -319,15 +330,15 @@ labels:["Assets","Liabilities"],
 datasets:[{data:[assetTotal,totalLiab]}]
 }
 });
+}
 
 }
 
 function updateRow(type,index,field,value){
 let month=document.getElementById("monthSelect").value;
-let store=type==="income"?oneIncomeStore:oneExpenseStore;
+let store=type==="income"?incomeStore:expenseStore;
 store[month][index][field]=field==="amount"?parseFloat(value)||0:value;
-saveAll();
-render();
+saveAll(); render();
 }
 
 function addAsset(){
