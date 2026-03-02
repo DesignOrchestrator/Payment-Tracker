@@ -185,50 +185,9 @@ if(remain>0) result.push({bank,remain});
 return result;
 }
 
-function renderEditableRows(containerId, dataStore, type){
-let month=document.getElementById("monthSelect").value;
-if(!dataStore[month]) dataStore[month]=Array(5).fill({name:"",amount:0});
-let table=document.getElementById(containerId);
-table.innerHTML="";
-dataStore[month].forEach((row,index)=>{
-table.innerHTML+=`
-<tr>
-<td><input value="${row.name||""}" onchange="updateRow('${type}',${index},'name',this.value)"></td>
-<td><input type="number" value="${row.amount||0}" onchange="updateRow('${type}',${index},'amount',this.value)"></td>
-</tr>`;
-});
-}
-
-function updateRow(type,index,field,value){
-let month=document.getElementById("monthSelect").value;
-let store = type==="income"?oneTimeIncome:oneTimeExpense;
-store[month][index][field] = field==="amount"?parseFloat(value)||0:value;
-localStorage.setItem(type==="income"?"fsOneTimeIncomeRows":"fsOneTimeExpenseRows",JSON.stringify(store));
-render();
-}
-
-function addAsset(){
-let n=document.getElementById("assetName").value;
-let v=parseFloat(document.getElementById("assetValue").value);
-if(!n||!v)return;
-manualAssets.push({name:n,value:v});
-saveBalance(); render();
-}
-
-function addLiability(){
-let n=document.getElementById("liabName").value;
-let v=parseFloat(document.getElementById("liabValue").value);
-if(!n||!v)return;
-manualLiab.push({name:n,value:v});
-saveBalance(); render();
-}
-
 function render(){
 
 let month=document.getElementById("monthSelect").value;
-
-renderEditableRows("oneTimeIncomeTable",oneTimeIncome,"income");
-renderEditableRows("oneTimeExpenseTable",oneTimeExpense,"expense");
 
 let recurring=getRecurringIncome();
 let oneTimeIncomeTotal=(oneTimeIncome[month]||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
@@ -260,7 +219,7 @@ let trueCF=totalIncome-totalExpenses-actual;
 showValue("variance",variance);
 showValue("trueCashflow",trueCF);
 
-// BALANCE
+// ===== BALANCE =====
 let auto=getAutoLiabilities();
 let autoTotal=auto.reduce((s,x)=>s+x.remain,0);
 let manualTotal=manualLiab.reduce((s,x)=>s+x.value,0);
@@ -271,16 +230,35 @@ showValue("assets",assetTotal);
 showValue("liabilities",totalLiab);
 showValue("netWorth",assetTotal-totalLiab);
 
-document.getElementById("assetTable").innerHTML=
-manualAssets.map((a,i)=>`<tr><td>${a.name}</td><td>${a.value}</td></tr>`).join("");
+// ===== ADVISORY =====
+let advice="";
+if(hasActivity){
+if(variance<0) advice+="⚠ Underpaid DMP this month.<br>";
+if(variance>0) advice+="✓ Accelerating debt repayment.<br>";
+if(trueCF<0) advice+="⚠ Running deficit.<br>";
+if(trueCF>0) advice+="✓ Positive cashflow.<br>";
+}else{
+advice="No activity recorded for this month.";
+}
+document.getElementById("adviceText").innerHTML=advice;
 
-document.getElementById("manualLiabTable").innerHTML=
-manualLiab.map((l,i)=>`<tr><td>${l.name}</td><td>${l.value}</td></tr>`).join("");
+// ===== CHARTS =====
+if(window.incomeChart) incomeChart.destroy();
+if(window.balanceChart) balanceChart.destroy();
 
-document.getElementById("autoLiabTable").innerHTML=
-auto.map(a=>`<tr><td>${a.bank}</td><td>${a.remain.toFixed(2)}</td></tr>`).join("");
+if(hasActivity){
+incomeChart=new Chart(document.getElementById("incomeRing"),{
+type:'doughnut',
+data:{labels:["Expenses","DMP","Remaining"],
+datasets:[{data:[totalExpenses,actual,Math.max(0,totalIncome-totalExpenses-actual)]}]}
+});
 
-if(!hasActivity) return;
+balanceChart=new Chart(document.getElementById("balanceRing"),{
+type:'doughnut',
+data:{labels:["Assets","Liabilities"],
+datasets:[{data:[assetTotal,totalLiab]}]}
+});
+}
 
 }
 
