@@ -10,6 +10,13 @@ body { font-family: Arial; margin:0; background:#f4f6f9; }
 .container { max-width:1200px; margin:auto; padding:20px; }
 h2 { margin-bottom:10px; }
 
+.topbar {
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:15px;
+}
+
 .grid {
 display:grid;
 grid-template-columns: 1fr 1fr;
@@ -19,8 +26,8 @@ gap:20px;
 .card {
 background:white;
 padding:18px;
-border-radius:10px;
-box-shadow:0 4px 12px rgba(0,0,0,0.08);
+border-radius:12px;
+box-shadow:0 4px 15px rgba(0,0,0,0.08);
 }
 
 h3 { margin-top:0; }
@@ -31,30 +38,35 @@ border-collapse:collapse;
 font-size:14px;
 }
 
-th,td {
+td {
 padding:6px;
-border-bottom:1px solid #eee;
+border-bottom:1px solid #f0f0f0;
 }
 
-select {
-padding:6px;
-margin-bottom:10px;
+.summary-number { font-weight:bold; }
+.positive { color:#28a745; font-weight:bold; }
+.negative { color:#dc3545; font-weight:bold; }
+
+input {
+padding:4px;
+width:90%;
+margin:3px 0;
 }
 
-.summary-number {
-font-weight:bold;
+button {
+padding:4px 8px;
+cursor:pointer;
+margin:3px;
 }
 
-.positive { color:#28a745; }
-.negative { color:#dc3545; }
-
-.footer-advice {
-margin-top:20px;
-padding:15px;
-background:white;
-border-radius:10px;
-box-shadow:0 4px 12px rgba(0,0,0,0.08);
+.chart-wrap {
+margin-top:15px;
 }
+
+.small-table td {
+font-size:13px;
+}
+
 </style>
 </head>
 
@@ -62,10 +74,10 @@ box-shadow:0 4px 12px rgba(0,0,0,0.08);
 
 <div class="container">
 
+<div class="topbar">
 <h2>Financial Statement</h2>
-
-<label>Select Month: </label>
 <select id="monthSelect" onchange="render()"></select>
+</div>
 
 <div class="grid">
 
@@ -74,102 +86,126 @@ box-shadow:0 4px 12px rgba(0,0,0,0.08);
 <h3>Cashflow</h3>
 
 <table>
-<tr><th>Total Income</th><td id="totalIncome"></td></tr>
-<tr><th>Living Expenses</th><td id="totalExpenses"></td></tr>
-<tr><th>Pre-Debt Surplus</th><td id="preDebt"></td></tr>
-<tr><th>Required DMP</th><td id="requiredDMP"></td></tr>
-<tr><th>Core Surplus</th><td id="coreSurplus"></td></tr>
-<tr><th>Actual DMP Paid</th><td id="actualPaid"></td></tr>
-<tr><th>Variance (Over/Under)</th><td id="variance"></td></tr>
-<tr><th>True Net Cashflow</th><td id="trueCashflow"></td></tr>
+<tr><td>Total Income</td><td id="income"></td></tr>
+<tr><td>Living Expenses</td><td id="expenses"></td></tr>
+<tr><td>Pre-Debt Surplus</td><td id="preDebt"></td></tr>
+<tr><td>Required DMP</td><td id="required"></td></tr>
+<tr><td>Actual Paid</td><td id="actual"></td></tr>
+<tr><td>Variance</td><td id="variance"></td></tr>
+<tr><td>True Cashflow</td><td id="trueCashflow"></td></tr>
 </table>
+
+<div class="chart-wrap">
+<canvas id="incomeRing"></canvas>
+</div>
 
 </div>
 
-<!-- BALANCE -->
+<!-- BALANCE SHEET -->
 <div class="card">
 <h3>Balance Sheet</h3>
 
+<h4>Assets</h4>
+<input placeholder="Asset Name" id="assetName">
+<input type="number" placeholder="Value" id="assetValue">
+<button onclick="addAsset()">Add</button>
+
+<table id="assetTable" class="small-table"></table>
+
+<h4>Liabilities</h4>
+<input placeholder="Liability Name" id="liabilityName">
+<input type="number" placeholder="Amount" id="liabilityValue">
+<button onclick="addLiability()">Add</button>
+
+<table id="liabilityTable" class="small-table"></table>
+
+<hr>
+
 <table>
-<tr><th>Total Assets</th><td id="totalAssets"></td></tr>
-<tr><th>Total Liabilities</th><td id="totalLiabilities"></td></tr>
-<tr><th>Net Worth</th><td id="netWorth"></td></tr>
+<tr><td>Total Assets</td><td id="totalAssets"></td></tr>
+<tr><td>Total Liabilities</td><td id="totalLiabilities"></td></tr>
+<tr><td>Net Worth</td><td id="netWorth"></td></tr>
 </table>
 
+<div class="chart-wrap">
+<canvas id="netWorthRing"></canvas>
 </div>
 
 </div>
 
-<div class="footer-advice">
-<h3>Financial Advisory</h3>
-<div id="adviceText"></div>
 </div>
 
 </div>
 
 <script>
 
-// REQUIRED DMP BASELINE
-const required = {
-"AMEX":162,
-"Citibank":384,
-"DBS":176,
-"HSBC":101,
-"SCB":266.35,
-"Trust":106,
-"UOB":200
+// REQUIRED DMP
+const requiredDMP = {
+AMEX:162, Citibank:384, DBS:176,
+HSBC:101, SCB:266.35, Trust:106, UOB:200
 };
 
-function getRequiredTotal(){
-let total=0;
-Object.values(required).forEach(v=> total+=v);
-return total;
+let assets = JSON.parse(localStorage.getItem("fsAssets")) || [];
+let manualLiabilities = JSON.parse(localStorage.getItem("fsManualLiabilities")) || [];
+
+function save(){
+localStorage.setItem("fsAssets",JSON.stringify(assets));
+localStorage.setItem("fsManualLiabilities",JSON.stringify(manualLiabilities));
 }
 
-function populateMonthDropdown(){
+function populateMonths(){
 let payments = JSON.parse(localStorage.getItem("payments")) || [];
-let months = [...new Set(payments.map(p=>p.monthRef))].sort();
+let months=[...new Set(payments.map(p=>p.monthRef))].sort();
 let select=document.getElementById("monthSelect");
 select.innerHTML="";
-months.forEach(m=>{
-select.innerHTML+=`<option value="${m}">${m}</option>`;
-});
+months.forEach(m=> select.innerHTML+=`<option value="${m}">${m}</option>`);
 }
 
 function getIncome(){
-let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
-let total=0;
-incomes.forEach(i=> total+=parseFloat(i.amount||i.a||0));
-return total;
+let data=JSON.parse(localStorage.getItem("budgetIncome"))||[];
+return data.reduce((s,i)=> s+parseFloat(i.amount||i.a||0),0);
 }
 
 function getExpenses(){
-let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
-let total=0;
-expenses.forEach(e=> total+=parseFloat(e.amount||e.a||0));
-return total;
+let data=JSON.parse(localStorage.getItem("budgetExpenses"))||[];
+return data.reduce((s,e)=> s+parseFloat(e.amount||e.a||0),0);
 }
 
-function getActualPaid(month){
-let payments = JSON.parse(localStorage.getItem("payments")) || [];
-return payments
-.filter(p=>p.monthRef===month)
-.reduce((sum,p)=>sum+p.amount,0);
+function getActual(month){
+let payments=JSON.parse(localStorage.getItem("payments"))||[];
+return payments.filter(p=>p.monthRef===month)
+.reduce((s,p)=>s+p.amount,0);
 }
 
-function getLiabilities(){
-let baseline = JSON.parse(localStorage.getItem("baseline")) || {};
-let payments = JSON.parse(localStorage.getItem("payments")) || {};
+function getAutoLiabilities(){
+let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
+let payments=JSON.parse(localStorage.getItem("payments"))||[];
 let total=0;
-
 Object.keys(baseline).forEach(bank=>{
 let paid=payments.filter(p=>p.bank===bank)
 .reduce((s,p)=>s+p.amount,0);
 let remain=Math.max(0,baseline[bank]-paid);
 total+=remain;
 });
-
 return total;
+}
+
+function addAsset(){
+let n=document.getElementById("assetName").value;
+let v=parseFloat(document.getElementById("assetValue").value);
+if(!n||!v)return;
+assets.push({n,v});
+save();
+render();
+}
+
+function addLiability(){
+let n=document.getElementById("liabilityName").value;
+let v=parseFloat(document.getElementById("liabilityValue").value);
+if(!n||!v)return;
+manualLiabilities.push({n,v});
+save();
+render();
 }
 
 function render(){
@@ -178,32 +214,33 @@ let month=document.getElementById("monthSelect").value;
 
 let income=getIncome();
 let expenses=getExpenses();
-let requiredDMP=getRequiredTotal();
-let actual=getActualPaid(month);
+let required=Object.values(requiredDMP).reduce((s,v)=>s+v,0);
+let actual=getActual(month);
 
 let preDebt=income-expenses;
-let coreSurplus=preDebt-requiredDMP;
-let variance=actual-requiredDMP;
-let trueCashflow=income-expenses-actual;
+let variance=actual-required;
+let trueCF=income-expenses-actual;
 
-document.getElementById("totalIncome").innerText=income.toFixed(2);
-document.getElementById("totalExpenses").innerText=expenses.toFixed(2);
+// DISPLAY CASHFLOW
+document.getElementById("income").innerText=income.toFixed(2);
+document.getElementById("expenses").innerText=expenses.toFixed(2);
 document.getElementById("preDebt").innerText=preDebt.toFixed(2);
-document.getElementById("requiredDMP").innerText=requiredDMP.toFixed(2);
-document.getElementById("coreSurplus").innerText=coreSurplus.toFixed(2);
-document.getElementById("actualPaid").innerText=actual.toFixed(2);
+document.getElementById("required").innerText=required.toFixed(2);
+document.getElementById("actual").innerText=actual.toFixed(2);
 
 let varEl=document.getElementById("variance");
 varEl.innerText=variance.toFixed(2);
 varEl.className=variance>=0?"positive":"negative";
 
 let trueEl=document.getElementById("trueCashflow");
-trueEl.innerText=trueCashflow.toFixed(2);
-trueEl.className=trueCashflow>=0?"positive":"negative";
+trueEl.innerText=trueCF.toFixed(2);
+trueEl.className=trueCF>=0?"positive":"negative";
 
-// Balance
-let totalLiabilities=getLiabilities();
-let totalAssets=0; // can connect to asset module later
+// BALANCE
+let autoLiabilities=getAutoLiabilities();
+let totalAssets=assets.reduce((s,a)=>s+a.v,0);
+let manualTotal=manualLiabilities.reduce((s,l)=>s+l.v,0);
+let totalLiabilities=autoLiabilities+manualTotal;
 let netWorth=totalAssets-totalLiabilities;
 
 document.getElementById("totalAssets").innerText=totalAssets.toFixed(2);
@@ -213,17 +250,44 @@ let nw=document.getElementById("netWorth");
 nw.innerText=netWorth.toFixed(2);
 nw.className=netWorth>=0?"positive":"negative";
 
-// Advisory
-let advice="";
-if(coreSurplus<0) advice+="Your income cannot sustain required DMP. Immediate restructuring or income increase needed.<br>";
-if(variance<0) advice+="You underpaid this month. Catch-up required.<br>";
-if(variance>0) advice+="Good. You are accelerating debt repayment.<br>";
-if(trueCashflow<0) advice+="You are running deficit after actual payments.<br>";
-document.getElementById("adviceText").innerHTML=advice;
+// RENDER ASSETS TABLE
+let at=document.getElementById("assetTable");
+at.innerHTML="";
+assets.forEach((a,i)=>{
+at.innerHTML+=`<tr><td>${a.n}</td><td>${a.v}</td></tr>`;
+});
+
+// RENDER LIABILITIES TABLE
+let lt=document.getElementById("liabilityTable");
+lt.innerHTML="";
+manualLiabilities.forEach((l,i)=>{
+lt.innerHTML+=`<tr><td>${l.n}</td><td>${l.v}</td></tr>`;
+});
+
+// CHARTS
+new Chart(document.getElementById("incomeRing"),{
+type:'doughnut',
+data:{
+labels:["Expenses","Actual DMP","Remaining"],
+datasets:[{
+data:[expenses,actual,Math.max(0,income-expenses-actual)]
+}]
+}
+});
+
+new Chart(document.getElementById("netWorthRing"),{
+type:'doughnut',
+data:{
+labels:["Assets","Liabilities"],
+datasets:[{
+data:[totalAssets,totalLiabilities]
+}]
+}
+});
 
 }
 
-populateMonthDropdown();
+populateMonths();
 render();
 
 </script>
