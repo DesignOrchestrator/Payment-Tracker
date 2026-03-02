@@ -2,46 +2,42 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Executive Budget Dashboard</title>
+<title>Simple Budget</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
   font-family: 'Segoe UI', sans-serif;
-  background:#f2f4f8;
-  margin:0;
+  background:#f4f6f9;
   padding:20px;
 }
 
-h1 {
-  text-align:center;
-  margin-bottom:25px;
-}
+h1 { text-align:center; margin-bottom:25px; }
 
 .grid {
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
   gap:15px;
-  margin-bottom:20px;
+  margin-bottom:25px;
 }
 
 .card {
   background:white;
-  padding:18px;
-  border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+  padding:16px;
+  border-radius:10px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.08);
 }
 
 .card h3 {
-  margin:0 0 10px 0;
-  font-size:14px;
-  color:#777;
+  margin:0;
+  font-size:13px;
+  color:#666;
 }
 
 .card p {
+  margin-top:8px;
   font-size:22px;
   font-weight:bold;
-  margin:0;
 }
 
 .positive { color:#16a34a; }
@@ -52,19 +48,19 @@ table {
   border-collapse:collapse;
   margin-bottom:20px;
   background:white;
-  border-radius:12px;
+  border-radius:10px;
   overflow:hidden;
-  box-shadow:0 4px 12px rgba(0,0,0,0.05);
+  box-shadow:0 4px 10px rgba(0,0,0,0.05);
 }
 
 th, td {
   padding:10px;
-  text-align:left;
 }
 
 th {
   background:#111827;
   color:white;
+  text-align:left;
 }
 
 input {
@@ -81,28 +77,20 @@ button {
   border-radius:6px;
 }
 
-button:hover {
-  opacity:0.9;
-}
+button:hover { opacity:0.9; }
 
-.chart-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px,1fr));
-  gap:20px;
-}
-
-textarea {
-  width:100%;
-  height:80px;
-  padding:8px;
-  border-radius:8px;
+.chart-box {
+  background:white;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.05);
 }
 </style>
 </head>
 
 <body>
 
-<h1>Executive Financial Dashboard</h1>
+<h1>Simple Budget</h1>
 
 <div class="grid">
   <div class="card">
@@ -114,12 +102,16 @@ textarea {
     <p id="totalExpenses">0</p>
   </div>
   <div class="card">
-    <h3>Total Debt Paid</h3>
-    <p id="totalDebt">0</p>
+    <h3>Monthly Net Cashflow</h3>
+    <p id="monthlyNet">0</p>
   </div>
   <div class="card">
-    <h3>Net Cashflow</h3>
-    <p id="netCashflow">0</p>
+    <h3>Yearly Cashflow</h3>
+    <p id="yearlyNet">0</p>
+  </div>
+  <div class="card">
+    <h3>Yearly Projection</h3>
+    <p id="projection">0</p>
   </div>
 </div>
 
@@ -130,7 +122,7 @@ textarea {
 
 <table>
 <thead>
-<tr><th>Source</th><th>Amount</th><th>%</th><th>Delete</th></tr>
+<tr><th>Source</th><th>Amount</th><th>Delete</th></tr>
 </thead>
 <tbody id="incomeTable"></tbody>
 </table>
@@ -142,38 +134,26 @@ textarea {
 
 <table>
 <thead>
-<tr><th>Category</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr>
+<tr><th>Category</th><th>Amount</th><th>Delete</th></tr>
 </thead>
 <tbody id="expenseTable"></tbody>
 </table>
 
-<h2>Insights</h2>
-<div class="chart-grid">
-  <div class="card">
-    <canvas id="barChart"></canvas>
-  </div>
-  <div class="card">
-    <canvas id="incomePie"></canvas>
-  </div>
+<div class="chart-box">
+  <canvas id="summaryChart"></canvas>
 </div>
-
-<h2>Strategic Notes</h2>
-<textarea id="budgetNotes" onchange="saveNotes()"></textarea>
 
 <script>
 
+// REQUIRED MONTHLY DMP (HIDDEN — DO NOT DISPLAY)
+const REQUIRED_DMP = 1395.35;
+
 let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
 let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
-let notes = localStorage.getItem("budgetNotes") || "";
-document.getElementById("budgetNotes").value = notes;
 
 function save(){
 localStorage.setItem("budgetIncome", JSON.stringify(incomes));
 localStorage.setItem("budgetExpenses", JSON.stringify(expenses));
-}
-
-function saveNotes(){
-localStorage.setItem("budgetNotes", document.getElementById("budgetNotes").value);
 }
 
 function addIncome(){
@@ -195,12 +175,12 @@ save(); render();
 function deleteIncome(i){ incomes.splice(i,1); save(); render(); }
 function deleteExpense(i){ expenses.splice(i,1); save(); render(); }
 
-function getDebt(){
+function getActualDebt(){
 let payments=JSON.parse(localStorage.getItem("payments"))||[];
 return payments.reduce((sum,p)=>sum+p.amount,0);
 }
 
-let barChart, pieChart;
+let chart;
 
 function render(){
 
@@ -214,57 +194,63 @@ incomes.forEach(i=> totalIncome+=i.a);
 let totalExpenses=0;
 expenses.forEach(e=> totalExpenses+=e.a);
 
-let debt=getDebt();
-let net= totalIncome-totalExpenses-debt;
+let actualDebt=getActualDebt();
 
+// CORE CALCULATIONS
+let monthlyNet = totalIncome - totalExpenses - actualDebt;
+let yearlyNet = monthlyNet * 12;
+
+// If underpay required DMP, projection adjusts
+let dmpShortfall = REQUIRED_DMP - actualDebt;
+if(dmpShortfall < 0) dmpShortfall = 0;
+
+let adjustedMonthly = monthlyNet - dmpShortfall;
+let yearlyProjection = adjustedMonthly * 12;
+
+// DISPLAY
 document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
 document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
-document.getElementById("totalDebt").innerText=debt.toFixed(2);
 
-let netEl=document.getElementById("netCashflow");
-netEl.innerText=net.toFixed(2);
-netEl.className= net<0?"negative":"positive";
+let mEl=document.getElementById("monthlyNet");
+mEl.innerText=monthlyNet.toFixed(2);
+mEl.className=monthlyNet<0?"negative":"positive";
 
+let yEl=document.getElementById("yearlyNet");
+yEl.innerText=yearlyNet.toFixed(2);
+yEl.className=yearlyNet<0?"negative":"positive";
+
+let pEl=document.getElementById("projection");
+pEl.innerText=yearlyProjection.toFixed(2);
+pEl.className=yearlyProjection<0?"negative":"positive";
+
+// TABLE RENDER
 incomes.forEach((i,index)=>{
-let percent= totalIncome?((i.a/totalIncome)*100).toFixed(1):0;
 incomeBody.innerHTML+=`
 <tr>
 <td>${i.s}</td>
 <td>${i.a}</td>
-<td>${percent}%</td>
 <td><button onclick="deleteIncome(${index})">X</button></td>
 </tr>`;
 });
 
 expenses.forEach((e,index)=>{
-let percent= totalIncome?((e.a/totalIncome)*100).toFixed(1):0;
 expenseBody.innerHTML+=`
 <tr>
 <td>${e.c}</td>
 <td>${e.a}</td>
-<td>${percent}%</td>
 <td><button onclick="deleteExpense(${index})">X</button></td>
 </tr>`;
 });
 
-if(barChart) barChart.destroy();
-barChart=new Chart(document.getElementById("barChart"),{
+// CHART
+if(chart) chart.destroy();
+
+chart=new Chart(document.getElementById("summaryChart"),{
 type:'bar',
 data:{
-labels:["Income","Expenses","Debt"],
+labels:["Income","Expenses","Debt Paid"],
 datasets:[{
-data:[totalIncome,totalExpenses,debt]
-}]
-}
-});
-
-if(pieChart) pieChart.destroy();
-pieChart=new Chart(document.getElementById("incomePie"),{
-type:'doughnut',
-data:{
-labels: incomes.map(i=>i.s),
-datasets:[{
-data: incomes.map(i=>i.a)
+data:[totalIncome,totalExpenses,actualDebt]
 }]
 }
 });
@@ -272,6 +258,8 @@ data: incomes.map(i=>i.a)
 }
 
 render();
+
 </script>
+
 </body>
 </html>
