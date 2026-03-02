@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Monthly Budget Dashboard</title>
+<title>Financial Budget Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -12,15 +12,19 @@ table { border-collapse: collapse; width:100%; background:white; margin-bottom:2
 th, td { border:1px solid #ddd; padding:8px; text-align:left;}
 th { background:#111; color:white;}
 button { padding:5px 10px; margin:3px; cursor:pointer;}
-input { padding:5px; margin:3px;}
+input { padding:5px; margin:3px; width:95%; }
 .summary { font-weight:bold; margin-top:10px; }
-.chart-container { width:500px; margin-top:20px;}
+.chart-container { width:600px; margin-top:20px;}
+.advisory { padding:15px; margin-top:15px; background:white; }
+textarea { width:100%; height:80px; }
+.negative { color:red; font-weight:bold; }
+.positive { color:green; font-weight:bold; }
 </style>
 </head>
 
 <body>
 
-<h2>Monthly Budget Dashboard</h2>
+<h2>Financial Budget Dashboard</h2>
 
 <h3>Income</h3>
 <input placeholder="Source" id="incomeSource">
@@ -28,7 +32,7 @@ input { padding:5px; margin:3px;}
 <button onclick="addIncome()">Add</button>
 
 <table id="incomeTable">
-<thead><tr><th>Source</th><th>Amount</th><th>Delete</th></tr></thead>
+<thead><tr><th>Source</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr></thead>
 <tbody></tbody>
 </table>
 
@@ -38,7 +42,7 @@ input { padding:5px; margin:3px;}
 <button onclick="addExpense()">Add</button>
 
 <table id="expenseTable">
-<thead><tr><th>Category</th><th>Amount</th><th>Delete</th></tr></thead>
+<thead><tr><th>Category</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr></thead>
 <tbody></tbody>
 </table>
 
@@ -46,7 +50,15 @@ input { padding:5px; margin:3px;}
 <p>Total Income: <span id="totalIncome">0</span></p>
 <p>Total Expenses: <span id="totalExpenses">0</span></p>
 <p>Total Debt Paid (Live): <span id="totalDebt">0</span></p>
-<p>Net Cashflow: <span id="netCashflow">0</span></p>
+<p>Net Monthly Cashflow: <span id="netCashflow">0</span></p>
+<p>Projected Yearly Cashflow: <span id="yearlyCashflow">0</span></p>
+</div>
+
+<div class="advisory">
+<h3>Advisory</h3>
+<div id="adviceText"></div>
+<h4>Notes</h4>
+<textarea id="budgetNotes" onchange="saveNotes()"></textarea>
 </div>
 
 <div class="chart-container">
@@ -57,10 +69,17 @@ input { padding:5px; margin:3px;}
 
 let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
 let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
+let notes = localStorage.getItem("budgetNotes") || "";
 
-function saveBudget(){
+document.getElementById("budgetNotes").value = notes;
+
+function save(){
 localStorage.setItem("budgetIncome", JSON.stringify(incomes));
 localStorage.setItem("budgetExpenses", JSON.stringify(expenses));
+}
+
+function saveNotes(){
+localStorage.setItem("budgetNotes", document.getElementById("budgetNotes").value);
 }
 
 function addIncome(){
@@ -68,7 +87,7 @@ let source=document.getElementById("incomeSource").value;
 let amount=parseFloat(document.getElementById("incomeAmount").value);
 if(!source||!amount)return;
 incomes.push({source,amount});
-saveBudget();
+save();
 render();
 }
 
@@ -77,19 +96,31 @@ let category=document.getElementById("expenseCategory").value;
 let amount=parseFloat(document.getElementById("expenseAmount").value);
 if(!category||!amount)return;
 expenses.push({category,amount});
-saveBudget();
+save();
+render();
+}
+
+function updateIncome(index,value){
+incomes[index].amount=parseFloat(value)||0;
+save();
+render();
+}
+
+function updateExpense(index,value){
+expenses[index].amount=parseFloat(value)||0;
+save();
 render();
 }
 
 function deleteIncome(index){
 incomes.splice(index,1);
-saveBudget();
+save();
 render();
 }
 
 function deleteExpense(index){
 expenses.splice(index,1);
-saveBudget();
+save();
 render();
 }
 
@@ -108,10 +139,15 @@ let totalIncome=0;
 
 incomes.forEach((i,index)=>{
 totalIncome+=i.amount;
+});
+
+incomes.forEach((i,index)=>{
+let percent = totalIncome ? ((i.amount/totalIncome)*100).toFixed(1) : 0;
 incomeBody.innerHTML+=`
 <tr>
 <td>${i.source}</td>
-<td>${i.amount.toFixed(2)}</td>
+<td><input type="number" value="${i.amount}" onchange="updateIncome(${index},this.value)"></td>
+<td>${percent}%</td>
 <td><button onclick="deleteIncome(${index})">X</button></td>
 </tr>`;
 });
@@ -122,28 +158,46 @@ let totalExpenses=0;
 
 expenses.forEach((e,index)=>{
 totalExpenses+=e.amount;
+});
+
+expenses.forEach((e,index)=>{
+let percent = totalIncome ? ((e.amount/totalIncome)*100).toFixed(1) : 0;
 expenseBody.innerHTML+=`
 <tr>
 <td>${e.category}</td>
-<td>${e.amount.toFixed(2)}</td>
+<td><input type="number" value="${e.amount}" onchange="updateExpense(${index},this.value)"></td>
+<td>${percent}%</td>
 <td><button onclick="deleteExpense(${index})">X</button></td>
 </tr>`;
 });
 
 let totalDebt=getDebtPaid();
-let net=totalIncome-totalExpenses-totalDebt;
+
+// NET CASHFLOW FORMULA
+// Net Cashflow = Total Income - Total Expenses - Total Debt Paid
+let net = totalIncome - totalExpenses - totalDebt;
+let yearly = net * 12;
 
 document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
 document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
 document.getElementById("totalDebt").innerText=totalDebt.toFixed(2);
-document.getElementById("netCashflow").innerText=net.toFixed(2);
+
+let netElement=document.getElementById("netCashflow");
+netElement.innerText=net.toFixed(2);
+netElement.className = net<0 ? "negative" : "positive";
+
+let yearlyElement=document.getElementById("yearlyCashflow");
+yearlyElement.innerText=yearly.toFixed(2);
+yearlyElement.className = yearly<0 ? "negative" : "positive";
+
+generateAdvice(net,totalIncome,totalExpenses,totalDebt);
 
 if(chartInstance) chartInstance.destroy();
 
 chartInstance=new Chart(document.getElementById("budgetChart"),{
 type:'bar',
 data:{
-labels:["Income","Expenses","Debt Paid"],
+labels:["Income","Expenses","Debt"],
 datasets:[{
 label:"Amount",
 data:[totalIncome,totalExpenses,totalDebt]
@@ -153,9 +207,32 @@ data:[totalIncome,totalExpenses,totalDebt]
 
 }
 
+function generateAdvice(net,income,expenses,debt){
+
+let advice="";
+
+if(net<0){
+advice+=`You are running a monthly deficit. Immediate action required.<br>`;
+if(debt>income*0.4){
+advice+=`Debt burden is very high (>40% of income). Focus on restructuring or income increase.<br>`;
+}
+if(expenses>income*0.6){
+advice+=`Expenses exceed 60% of income. Review discretionary spending.<br>`;
+}
+advice+=`Priority: Increase income or reduce expenses urgently.`;
+}
+else if(net<income*0.1){
+advice+=`You have a small surplus. Build emergency fund first (3–6 months).`;
+}
+else{
+advice+=`Healthy surplus. Allocate funds to debt acceleration and investments.`;
+}
+
+document.getElementById("adviceText").innerHTML=advice;
+}
+
 render();
 
 </script>
-
 </body>
 </html>
