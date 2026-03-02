@@ -2,209 +2,224 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Rich Dad Financial Statement</title>
+<title>Financial Statement</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: Arial; padding:20px; background:#f4f6f9;}
+body { font-family: Arial; margin:0; background:#f4f6f9; }
+.container { max-width:1100px; margin:auto; padding:20px; }
 h2 { margin-bottom:20px; }
-.section { background:white; padding:20px; margin-bottom:20px; }
-table { border-collapse: collapse; width:100%; margin-bottom:15px;}
-th, td { border:1px solid #ddd; padding:8px; text-align:left;}
-th { background:#111; color:white;}
-input { padding:5px; width:95%; }
-button { padding:5px 10px; margin:3px; cursor:pointer;}
-.summary { font-weight:bold; margin-top:10px; }
-.positive { color:green; font-weight:bold; }
-.negative { color:red; font-weight:bold; }
-.chart-container { width:600px; margin-top:20px;}
+
+.grid {
+display:grid;
+grid-template-columns: 1fr 1fr;
+gap:20px;
+}
+
+.card {
+background:white;
+padding:18px;
+border-radius:10px;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+h3 { margin-top:0; }
+
+table {
+width:100%;
+border-collapse:collapse;
+font-size:14px;
+}
+
+th,td {
+padding:6px;
+border-bottom:1px solid #eee;
+}
+
+th { text-align:left; }
+
+.summary-number {
+font-size:20px;
+font-weight:bold;
+}
+
+.positive { color:#28a745; }
+.negative { color:#dc3545; }
+
+.chart-wrap {
+margin-top:15px;
+}
+
+.footer-advice {
+margin-top:20px;
+padding:15px;
+background:white;
+border-radius:10px;
+box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
 </style>
 </head>
 
 <body>
 
-<h2>Rich Dad Financial Statement</h2>
+<div class="container">
 
-<!-- CASHFLOW SECTION -->
-<div class="section">
-<h3>Cashflow Statement</h3>
+<h2>Financial Statement</h2>
 
-<h4>Income</h4>
-<input placeholder="Source" id="incomeSource">
-<input type="number" placeholder="Amount" id="incomeAmount">
-<button onclick="addIncome()">Add</button>
+<div class="grid">
 
-<table id="incomeTable">
-<thead><tr><th>Source</th><th>Amount</th><th>Delete</th></tr></thead>
-<tbody></tbody>
+<!-- CASHFLOW CARD -->
+<div class="card">
+<h3>Cashflow</h3>
+
+<table>
+<tr><th>Total Income</th><td id="totalIncome"></td></tr>
+<tr><th>Total Expenses</th><td id="totalExpenses"></td></tr>
+<tr><th>Debt Payment (Live)</th><td id="totalDebt"></td></tr>
+<tr><th>Net Monthly Cashflow</th><td id="monthlyCashflow"></td></tr>
+<tr><th>Projected Yearly Cashflow</th><td id="yearlyCashflow"></td></tr>
 </table>
 
-<h4>Expenses</h4>
-<input placeholder="Category" id="expenseCategory">
-<input type="number" placeholder="Amount" id="expenseAmount">
-<button onclick="addExpense()">Add</button>
-
-<table id="expenseTable">
-<thead><tr><th>Category</th><th>Amount</th><th>Delete</th></tr></thead>
-<tbody></tbody>
-</table>
-
-<div class="summary">
-Monthly Cashflow: <span id="monthlyCashflow">0</span><br>
-Yearly Cashflow Projection: <span id="yearlyCashflow">0</span>
+<div class="chart-wrap">
+<canvas id="cashflowChart"></canvas>
 </div>
 
 </div>
 
-<!-- BALANCE SHEET SECTION -->
-<div class="section">
+<!-- BALANCE SHEET CARD -->
+<div class="card">
 <h3>Balance Sheet</h3>
 
-<h4>Assets</h4>
-<input placeholder="Asset Name" id="assetName">
-<input type="number" placeholder="Value" id="assetValue">
-<button onclick="addAsset()">Add</button>
-
-<table id="assetTable">
-<thead><tr><th>Asset</th><th>Value</th><th>Delete</th></tr></thead>
-<tbody></tbody>
+<table>
+<tr><th>Total Assets</th><td id="totalAssets"></td></tr>
+<tr><th>Total Liabilities</th><td id="totalLiabilities"></td></tr>
+<tr><th>Net Worth</th><td id="netWorth"></td></tr>
 </table>
 
-<h4>Liabilities (Auto from Debt Tracker)</h4>
-<table id="liabilityTable">
-<thead><tr><th>Bank</th><th>Remaining</th></tr></thead>
-<tbody></tbody>
-</table>
-
-<div class="summary">
-Total Assets: <span id="totalAssets">0</span><br>
-Total Liabilities: <span id="totalLiabilities">0</span><br>
-Net Worth: <span id="netWorth">0</span>
+<div class="chart-wrap">
+<canvas id="balanceChart"></canvas>
 </div>
 
 </div>
 
-<div class="section">
+</div>
+
+<div class="footer-advice">
 <h3>Financial Advisory</h3>
-<div id="advice"></div>
+<div id="adviceText"></div>
+</div>
+
 </div>
 
 <script>
 
-// STORAGE
-let incomes = JSON.parse(localStorage.getItem("fsIncome")) || [];
-let expenses = JSON.parse(localStorage.getItem("fsExpenses")) || [];
-let assets = JSON.parse(localStorage.getItem("fsAssets")) || [];
-
-// CASHFLOW FUNCTIONS
-
-function addIncome(){
-let s=document.getElementById("incomeSource").value;
-let a=parseFloat(document.getElementById("incomeAmount").value);
-if(!s||!a)return;
-incomes.push({s,a});
-localStorage.setItem("fsIncome",JSON.stringify(incomes));
-render();
+function getBudgetIncome(){
+return JSON.parse(localStorage.getItem("budgetIncome")) || [];
 }
 
-function addExpense(){
-let c=document.getElementById("expenseCategory").value;
-let a=parseFloat(document.getElementById("expenseAmount").value);
-if(!c||!a)return;
-expenses.push({c,a});
-localStorage.setItem("fsExpenses",JSON.stringify(expenses));
-render();
+function getBudgetExpenses(){
+return JSON.parse(localStorage.getItem("budgetExpenses")) || [];
 }
 
-function deleteIncome(i){ incomes.splice(i,1); localStorage.setItem("fsIncome",JSON.stringify(incomes)); render();}
-function deleteExpense(i){ expenses.splice(i,1); localStorage.setItem("fsExpenses",JSON.stringify(expenses)); render();}
-
-// ASSETS
-function addAsset(){
-let n=document.getElementById("assetName").value;
-let v=parseFloat(document.getElementById("assetValue").value);
-if(!n||!v)return;
-assets.push({n,v});
-localStorage.setItem("fsAssets",JSON.stringify(assets));
-render();
+function getDebtPaid(){
+let payments = JSON.parse(localStorage.getItem("payments")) || [];
+return payments.reduce((sum,p)=>sum+p.amount,0);
 }
-function deleteAsset(i){ assets.splice(i,1); localStorage.setItem("fsAssets",JSON.stringify(assets)); render();}
 
-// MAIN RENDER
+function getLiabilities(){
+let baseline = JSON.parse(localStorage.getItem("baseline")) || {};
+let payments = JSON.parse(localStorage.getItem("payments")) || [];
+let total = 0;
+
+Object.keys(baseline).forEach(bank=>{
+let paid = payments.filter(p=>p.bank===bank)
+.reduce((s,p)=>s+p.amount,0);
+let remain = Math.max(0, baseline[bank] - paid);
+total += remain;
+});
+
+return total;
+}
+
+let cashflowChart=null;
+let balanceChart=null;
+
 function render(){
 
 // CASHFLOW
-let incomeBody=document.querySelector("#incomeTable tbody");
-incomeBody.innerHTML="";
+let incomes=getBudgetIncome();
+let expenses=getBudgetExpenses();
+
 let totalIncome=0;
-incomes.forEach((x,i)=>{
-totalIncome+=x.a;
-incomeBody.innerHTML+=`<tr><td>${x.s}</td><td>${x.a}</td><td><button onclick="deleteIncome(${i})">X</button></td></tr>`;
-});
+incomes.forEach(i=> totalIncome+=parseFloat(i.amount||i.a||0));
 
-let expenseBody=document.querySelector("#expenseTable tbody");
-expenseBody.innerHTML="";
 let totalExpenses=0;
-expenses.forEach((x,i)=>{
-totalExpenses+=x.a;
-expenseBody.innerHTML+=`<tr><td>${x.c}</td><td>${x.a}</td><td><button onclick="deleteExpense(${i})">X</button></td></tr>`;
-});
+expenses.forEach(e=> totalExpenses+=parseFloat(e.amount||e.a||0));
 
-let monthlyCashflow = totalIncome - totalExpenses;
-let yearlyCashflow = monthlyCashflow * 12;
+let totalDebt=getDebtPaid();
 
-let mEl=document.getElementById("monthlyCashflow");
-mEl.innerText=monthlyCashflow.toFixed(2);
-mEl.className = monthlyCashflow>=0?"positive":"negative";
+let monthly = totalIncome - totalExpenses - totalDebt;
+let yearly = monthly * 12;
 
-let yEl=document.getElementById("yearlyCashflow");
-yEl.innerText=yearlyCashflow.toFixed(2);
-yEl.className = yearlyCashflow>=0?"positive":"negative";
-
-// BALANCE SHEET
-let assetBody=document.querySelector("#assetTable tbody");
-assetBody.innerHTML="";
-let totalAssets=0;
-assets.forEach((x,i)=>{
-totalAssets+=x.v;
-assetBody.innerHTML+=`<tr><td>${x.n}</td><td>${x.v}</td><td><button onclick="deleteAsset(${i})">X</button></td></tr>`;
-});
-
-// LIABILITIES AUTO FROM PAYMENT TRACKER
-let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
-let payments=JSON.parse(localStorage.getItem("payments"))||{};
-let liabilityBody=document.querySelector("#liabilityTable tbody");
-liabilityBody.innerHTML="";
-let totalLiabilities=0;
-
-Object.keys(baseline).forEach(bank=>{
-let paid=payments.filter(p=>p.bank===bank).reduce((s,p)=>s+p.amount,0);
-let remain=Math.max(0,baseline[bank]-paid);
-totalLiabilities+=remain;
-liabilityBody.innerHTML+=`<tr><td>${bank}</td><td>${remain.toFixed(2)}</td></tr>`;
-});
-
+// BALANCE
+let totalLiabilities=getLiabilities();
+let totalAssets=parseFloat(localStorage.getItem("fsAssetTotal")) || 0; // simple placeholder for now
 let netWorth = totalAssets - totalLiabilities;
 
-document.getElementById("totalAssets").innerText=totalAssets.toFixed(2);
-document.getElementById("totalLiabilities").innerText=totalLiabilities.toFixed(2);
+// DISPLAY
+document.getElementById("totalIncome").innerHTML = totalIncome.toFixed(2);
+document.getElementById("totalExpenses").innerHTML = totalExpenses.toFixed(2);
+document.getElementById("totalDebt").innerHTML = totalDebt.toFixed(2);
+
+let mEl=document.getElementById("monthlyCashflow");
+mEl.innerHTML = monthly.toFixed(2);
+mEl.className = monthly>=0?"positive":"negative";
+
+let yEl=document.getElementById("yearlyCashflow");
+yEl.innerHTML = yearly.toFixed(2);
+yEl.className = yearly>=0?"positive":"negative";
+
+document.getElementById("totalAssets").innerHTML = totalAssets.toFixed(2);
+document.getElementById("totalLiabilities").innerHTML = totalLiabilities.toFixed(2);
 
 let nw=document.getElementById("netWorth");
-nw.innerText=netWorth.toFixed(2);
+nw.innerHTML = netWorth.toFixed(2);
 nw.className = netWorth>=0?"positive":"negative";
 
-// ADVISORY
+// ADVISORY ENGINE
 let advice="";
+if(monthly<0){
+advice+="You are running negative monthly cashflow. Reduce expenses or increase income immediately.<br>";
+}
+if(totalLiabilities>totalIncome*12){
+advice+="Debt is higher than annual income. Aggressive repayment strategy recommended.<br>";
+}
 if(netWorth<0){
-advice+="Your net worth is negative. Priority: eliminate high-interest debt.<br>";
+advice+="Net worth is negative. Focus on liability reduction before investing.<br>";
 }
-if(monthlyCashflow<0){
-advice+="You are running negative cashflow. Increase income or cut expenses immediately.<br>";
+if(monthly>0 && netWorth>=0){
+advice+="Healthy financial structure. Start building income-generating assets.<br>";
 }
-if(netWorth>=0 && monthlyCashflow>0){
-advice+="Healthy foundation. Focus on acquiring income-generating assets.<br>";
+document.getElementById("adviceText").innerHTML=advice;
+
+// CHARTS
+if(cashflowChart) cashflowChart.destroy();
+cashflowChart=new Chart(document.getElementById("cashflowChart"),{
+type:'bar',
+data:{
+labels:["Income","Expenses","Debt"],
+datasets:[{data:[totalIncome,totalExpenses,totalDebt]}]
 }
-document.getElementById("advice").innerHTML=advice;
+});
+
+if(balanceChart) balanceChart.destroy();
+balanceChart=new Chart(document.getElementById("balanceChart"),{
+type:'doughnut',
+data:{
+labels:["Assets","Liabilities"],
+datasets:[{data:[totalAssets,totalLiabilities]}]
+}
+});
 
 }
 
