@@ -2,32 +2,31 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Debt Command Center</title>
+<title>Baseline vs CB Comparison</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: Arial; padding:20px; background:#f4f6f9;}
-table { border-collapse: collapse; width:100%; margin-top:20px; background:white;}
-th,td { border:1px solid #ddd; padding:8px; text-align:center;}
-th { background:#111; color:white;}
-button { padding:6px 10px; margin:3px; cursor:pointer;}
-input { padding:4px; margin:2px;}
-.summary { margin-top:20px; font-weight:bold;}
-.chart-container { width:420px; display:inline-block; margin:20px;}
-.contact-box { font-size:12px; text-align:left;}
-.small { font-size:12px; color:gray;}
+body { font-family: Arial; padding: 20px; background:#f4f6f9;}
+table { border-collapse: collapse; width: 100%; margin-top: 20px; background:white;}
+th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+th { background: #111; color: white; }
+button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
+.summary { margin-top: 20px; font-size: 18px; font-weight:bold;}
+.chart-container { width: 420px; display:inline-block; margin:20px;}
+.insight { margin-top:20px; background:white; padding:15px; }
+.small { font-size:12px; color:gray; margin-top:5px;}
 </style>
 </head>
 
 <body>
 
-<h2>Debt Command Center</h2>
+<h2>Baseline vs CB Comparison</h2>
 
-<input type="file" id="upload" accept=".xlsx">
-<button onclick="exportExcel()">Export Excel</button>
-<button onclick="clearCB()">Clear CB Data</button>
+<input type="file" id="upload" accept=".xlsx" />
+<button onclick="exportExcel()">Export to Excel</button>
+<button onclick="clearData()">Clear Saved CB Data</button>
 
 <div class="small" id="lastUpdated"></div>
 
@@ -35,32 +34,40 @@ input { padding:4px; margin:2px;}
 <thead>
 <tr>
 <th>Bank</th>
-<th>Remaining</th>
-<th>CB</th>
+<th>Baseline Remaining</th>
+<th>CB Outstanding</th>
 <th>Difference</th>
-<th>Latest Shortfall</th>
+<th>Latest Month Shortfall</th>
 <th>Cumulative Shortfall</th>
-<th>Contacts</th>
 </tr>
 </thead>
 <tbody></tbody>
 </table>
 
 <div class="summary">
-Total Remaining: <span id="totalBaseline">0</span> |
-Total CB: <span id="totalCB">0</span> |
-Total Difference: <span id="totalDiff">0</span>
+<p>Total Baseline Remaining: <span id="totalBaseline">0</span></p>
+<p>Total CB: <span id="totalCB">0</span></p>
+<p>Total Difference: <span id="totalDiff">0</span></p>
 </div>
 
 <div>
-<div class="chart-container"><canvas id="totalChart"></canvas></div>
-<div class="chart-container"><canvas id="diffChart"></canvas></div>
-<div class="chart-container" style="width:850px;"><canvas id="shortfallChart"></canvas></div>
+<div class="chart-container">
+<canvas id="totalChart"></canvas>
 </div>
+
+<div class="chart-container">
+<canvas id="diffChart"></canvas>
+</div>
+
+<div class="chart-container" style="width:850px;">
+<canvas id="shortfallChart"></canvas>
+</div>
+</div>
+
+<div class="insight" id="insightBox"></div>
 
 <script>
 
-// REQUIRED MONTHLY
 const required = {
 "AMEX":162,
 "Citibank":384,
@@ -71,182 +78,226 @@ const required = {
 "UOB":197.68
 };
 
-// DEFAULT CONTACTS (From Your Letters)
-const defaultContacts = {
-"SCB":[{type:"Phone",value:"18007477000"}],
-"Citibank":[{type:"Phone",value:"62255225"}],
-"DBS":[{type:"Phone",value:"62276864"}],
-"UOB":[{type:"Phone",value:"18003882121"},
-       {type:"Email",value:"Customer.Service@UOBgroup.com"}],
-"HSBC":[{type:"Phone",value:"66585955"}],
-"AMEX":[{type:"Phone",value:"68801515"}],
-"Trust":[]
-};
+let comparisonRows = [];
+let totalBaseline = 0;
+let totalCB = 0;
+let totalDiff = 0;
 
-let contacts = JSON.parse(localStorage.getItem("bankContacts")) || defaultContacts;
-
-function saveContacts(){
-localStorage.setItem("bankContacts",JSON.stringify(contacts));
-}
+let totalChartInstance = null;
+let diffChartInstance = null;
+let shortfallChartInstance = null;
 
 function generateFullMonthRange(payments){
-if(payments.length===0)return[];
-const sorted=payments.map(p=>p.monthRef).sort();
-const start=sorted[0];
-const end=sorted[sorted.length-1];
-let months=[];
-let current=new Date(start+"-01");
-const endDate=new Date(end+"-01");
-while(current<=endDate){
-let y=current.getFullYear();
-let m=String(current.getMonth()+1).padStart(2,'0');
-months.push(`${y}-${m}`);
-current.setMonth(current.getMonth()+1);
-}
-return months;
+
+  if(payments.length === 0) return [];
+
+  const sortedMonths = payments.map(p=>p.monthRef).sort();
+  const start = sortedMonths[0];
+  const end = sortedMonths[sortedMonths.length-1];
+
+  let months = [];
+  let current = new Date(start + "-01");
+  const endDate = new Date(end + "-01");
+
+  while(current <= endDate){
+    const year = current.getFullYear();
+    const month = String(current.getMonth()+1).padStart(2,'0');
+    months.push(`${year}-${month}`);
+    current.setMonth(current.getMonth()+1);
+  }
+
+  return months;
 }
 
-document.getElementById("upload").addEventListener("change",function(e){
-const file=e.target.files[0];
-const reader=new FileReader();
-reader.onload=function(event){
-const data=new Uint8Array(event.target.result);
-const wb=XLSX.read(data,{type:'array'});
-const sheet=wb.Sheets[wb.SheetNames[0]];
-const json=XLSX.utils.sheet_to_json(sheet);
-localStorage.setItem("cbData",JSON.stringify(json));
-localStorage.setItem("lastUpdated",new Date().toLocaleString());
-generateComparison(json);
-};
-reader.readAsArrayBuffer(file);
+document.getElementById('upload').addEventListener('change', function(e){
+
+  const file = e.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(event){
+
+    const data = new Uint8Array(event.target.result);
+    const workbook = XLSX.read(data, {type:'array'});
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet);
+
+    localStorage.setItem("cbData", JSON.stringify(json));
+    localStorage.setItem("lastUpdated", new Date().toLocaleString());
+
+    generateComparison(json);
+  };
+
+  reader.readAsArrayBuffer(file);
 });
 
 function generateComparison(cbData){
 
-const payments=JSON.parse(localStorage.getItem("payments"))||[];
-const baseline=JSON.parse(localStorage.getItem("baseline"))||{};
-const months=generateFullMonthRange(payments);
-const latestMonth=months.length?months[months.length-1]:null;
+  const payments = JSON.parse(localStorage.getItem("payments")) || [];
+  const baseline = JSON.parse(localStorage.getItem("baseline")) || {};
 
-let tbody=document.querySelector("#comparisonTable tbody");
-tbody.innerHTML="";
+  const months = generateFullMonthRange(payments);
+  const latestMonth = months.length ? months[months.length-1] : null;
 
-let totalBaseline=0,totalCB=0,totalDiff=0;
+  const tbody = document.querySelector("#comparisonTable tbody");
+  tbody.innerHTML = "";
 
-cbData.forEach(row=>{
+  comparisonRows = [];
+  totalBaseline = 0;
+  totalCB = 0;
+  totalDiff = 0;
 
-const bank=row.Banks;
-const cb=parseFloat(row["CB Outstanding"])||0;
-const base=baseline[bank]||0;
-const paidTotal=payments.filter(p=>p.bank===bank).reduce((s,p)=>s+p.amount,0);
-const remain=Math.max(0,base-paidTotal);
+  cbData.forEach(row=>{
 
-let latestShort=0;
-if(latestMonth){
-const paidLatest=payments.filter(p=>p.bank===bank && p.monthRef===latestMonth)
-.reduce((s,p)=>s+p.amount,0);
-latestShort=paidLatest-required[bank];
+    const bank = row.Banks;
+    const cbOutstanding = parseFloat(row["CB Outstanding"]) || 0;
+
+    const base = baseline[bank] || 0;
+
+    const paidTotal = payments
+      .filter(p=>p.bank===bank)
+      .reduce((s,p)=>s+p.amount,0);
+
+    const remain = Math.max(0, base - paidTotal);
+
+    // --- Latest Month Shortfall (Missing Month Included) ---
+    let latestShortfall = 0;
+    if(latestMonth){
+      const latestPaid = payments
+        .filter(p=>p.bank===bank && p.monthRef===latestMonth)
+        .reduce((s,p)=>s+p.amount,0);
+
+      latestShortfall = latestPaid - required[bank];
+    }
+
+    // --- Cumulative Shortfall (Obligation-Based) ---
+    let cumulativeShortfall = 0;
+
+    months.forEach(month=>{
+      const paidForMonth = payments
+        .filter(p=>p.bank===bank && p.monthRef===month)
+        .reduce((s,p)=>s+p.amount,0);
+
+      cumulativeShortfall += (paidForMonth - required[bank]);
+    });
+
+    const diff = cbOutstanding - remain;
+
+    totalBaseline += remain;
+    totalCB += cbOutstanding;
+    totalDiff += diff;
+
+    comparisonRows.push([
+      bank,
+      remain,
+      cbOutstanding,
+      diff,
+      latestShortfall,
+      cumulativeShortfall
+    ]);
+
+    let diffText="";
+    let diffStyle="";
+
+    if(diff>0){
+      diffText=`+${diff.toFixed(2)} (CB More)`;
+      diffStyle="color:red;font-weight:bold;";
+    }else if(diff<0){
+      diffText=`${diff.toFixed(2)} (CB Less)`;
+      diffStyle="color:green;font-weight:bold;";
+    }else{
+      diffText="0.00 (Match)";
+      diffStyle="color:gray;font-weight:bold;";
+    }
+
+    tbody.innerHTML+=`
+    <tr>
+      <td>${bank}</td>
+      <td>${remain.toFixed(2)}</td>
+      <td>${cbOutstanding.toFixed(2)}</td>
+      <td style="${diffStyle}">${diffText}</td>
+      <td>${latestShortfall.toFixed(2)}</td>
+      <td>${cumulativeShortfall.toFixed(2)}</td>
+    </tr>
+    `;
+  });
+
+  document.getElementById("totalBaseline").innerText=totalBaseline.toFixed(2);
+  document.getElementById("totalCB").innerText=totalCB.toFixed(2);
+  document.getElementById("totalDiff").innerText=totalDiff.toFixed(2);
+
+  document.getElementById("lastUpdated").innerText =
+    "Last Updated: "+localStorage.getItem("lastUpdated");
+
+  renderCharts(latestMonth);
+  renderInsights(latestMonth);
 }
 
-let cumulative=0;
-months.forEach(month=>{
-const paidMonth=payments.filter(p=>p.bank===bank && p.monthRef===month)
-.reduce((s,p)=>s+p.amount,0);
-cumulative+=paidMonth-required[bank];
-});
+function renderCharts(latestMonth){
 
-const diff=cb-remain;
+  if(totalChartInstance) totalChartInstance.destroy();
+  if(diffChartInstance) diffChartInstance.destroy();
+  if(shortfallChartInstance) shortfallChartInstance.destroy();
 
-totalBaseline+=remain;
-totalCB+=cb;
-totalDiff+=diff;
+  totalChartInstance = new Chart(document.getElementById("totalChart"),{
+    type:'doughnut',
+    data:{
+      labels:["Baseline Remaining","CB Total"],
+      datasets:[{data:[totalBaseline,totalCB]}]
+    }
+  });
 
-let diffColor=diff>0?"red":diff<0?"green":"gray";
-let diffText=diff>0?`+${diff.toFixed(2)} (CB More)`
-:diff<0?`${diff.toFixed(2)} (CB Less)`
-:"0.00 (Match)";
+  diffChartInstance = new Chart(document.getElementById("diffChart"),{
+    type:'doughnut',
+    data:{
+      labels:comparisonRows.map(r=>r[0]),
+      datasets:[{data:comparisonRows.map(r=>Math.abs(r[3]))}]
+    }
+  });
 
-tbody.innerHTML+=`
-<tr>
-<td>${bank}</td>
-<td>${remain.toFixed(2)}</td>
-<td>${cb.toFixed(2)}</td>
-<td style="color:${diffColor};font-weight:bold">${diffText}</td>
-<td>${latestShort.toFixed(2)}</td>
-<td>${cumulative.toFixed(2)}</td>
-<td>${renderContacts(bank)}</td>
-</tr>
-`;
-});
-
-document.getElementById("totalBaseline").innerText=totalBaseline.toFixed(2);
-document.getElementById("totalCB").innerText=totalCB.toFixed(2);
-document.getElementById("totalDiff").innerText=totalDiff.toFixed(2);
-document.getElementById("lastUpdated").innerText="Last Updated: "+localStorage.getItem("lastUpdated");
-
-renderCharts();
+  shortfallChartInstance = new Chart(document.getElementById("shortfallChart"),{
+    type:'bar',
+    data:{
+      labels:comparisonRows.map(r=>r[0]),
+      datasets:[
+        {label:"Latest Month Shortfall", data:comparisonRows.map(r=>r[4])},
+        {label:"Cumulative Shortfall", data:comparisonRows.map(r=>r[5])},
+        {label:"CB Difference", data:comparisonRows.map(r=>r[3])}
+      ]
+    }
+  });
 }
 
-function renderContacts(bank){
-
-let html='<div class="contact-box">';
-
-(contacts[bank]||[]).forEach((c,i)=>{
-if(c.type==="Phone"){
-html+=`📞 <a href="tel:${c.value}">${c.value}</a><br>`;
-}else{
-html+=`📧 <a href="mailto:${c.value}">${c.value}</a><br>`;
-}
-});
-
-html+=`
-<input placeholder="Phone/Email" id="new_${bank}">
-<button onclick="addContact('${bank}')">+</button>
-</div>`;
-
-return html;
-}
-
-function addContact(bank){
-let val=document.getElementById("new_"+bank).value.trim();
-if(!val)return;
-let type=val.includes("@")?"Email":"Phone";
-if(!contacts[bank])contacts[bank]=[];
-contacts[bank].push({type,value:val});
-saveContacts();
-generateComparison(JSON.parse(localStorage.getItem("cbData")));
-}
-
-function renderCharts(){
-new Chart(document.getElementById("totalChart"),{
-type:'doughnut',
-data:{labels:["Remaining","CB"],datasets:[{data:[
-parseFloat(document.getElementById("totalBaseline").innerText),
-parseFloat(document.getElementById("totalCB").innerText)
-]}]}
-});
+function renderInsights(latestMonth){
+  document.getElementById("insightBox").innerHTML=`
+  <h3>Insights</h3>
+  <p>Latest Month Analysed: <strong>${latestMonth || "N/A"}</strong></p>
+  <p>Total CB Difference vs Tracker: <strong>${totalDiff.toFixed(2)}</strong></p>
+  <p>Missing months are fully counted as shortfall based on required monthly obligation.</p>
+  `;
 }
 
 function exportExcel(){
-const data=[["Bank","Remaining","CB"]];
-document.querySelectorAll("#comparisonTable tbody tr").forEach(r=>{
-let cells=r.querySelectorAll("td");
-data.push([cells[0].innerText,cells[1].innerText,cells[2].innerText]);
-});
-const ws=XLSX.utils.aoa_to_sheet(data);
-const wb=XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb,ws,"Debt");
-XLSX.writeFile(wb,"Debt_Command_Center.xlsx");
+  const ws_data=[
+    ["Bank","Remaining","CB","Difference","Latest Shortfall","Cumulative Shortfall"],
+    ...comparisonRows
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(ws_data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Comparison");
+  XLSX.writeFile(wb,"Baseline_vs_CB_Comparison.xlsx");
 }
 
-function clearCB(){
-localStorage.removeItem("cbData");
-location.reload();
+function clearData(){
+  localStorage.removeItem("cbData");
+  localStorage.removeItem("lastUpdated");
+  location.reload();
 }
 
 window.onload=function(){
-let saved=localStorage.getItem("cbData");
-if(saved)generateComparison(JSON.parse(saved));
+  const savedData=localStorage.getItem("cbData");
+  if(savedData){
+    generateComparison(JSON.parse(savedData));
+  }
 };
 
 </script>
