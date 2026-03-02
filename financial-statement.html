@@ -91,6 +91,25 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 <div class="card">
 <h3>Balance Sheet</h3>
 
+<div class="section-title">Assets</div>
+<input placeholder="Asset Name" id="assetName">
+<input type="number" placeholder="Value" id="assetValue">
+<button onclick="addAsset()">Add</button>
+
+<table id="assetTable"></table>
+
+<div class="section-title">Manual Liabilities</div>
+<input placeholder="Liability Name" id="liabilityName">
+<input type="number" placeholder="Amount" id="liabilityValue">
+<button onclick="addLiability()">Add</button>
+
+<table id="manualLiabilityTable"></table>
+
+<div class="section-title">Auto Liabilities (DMP Remaining)</div>
+<table id="autoLiabilityTable"></table>
+
+<hr>
+
 <table>
 <tr><td>Total Assets</td><td id="assets"></td></tr>
 <tr><td>Total Liabilities</td><td id="liabilities"></td></tr>
@@ -102,17 +121,6 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 </div>
 
 </div>
-
-</div>
-
-<div class="advisory">
-<h3>Advisory & Explanation</h3>
-<div id="adviceText"></div>
-</div>
-
-</div>
-
-<script>
 
 // ===== DMP REQUIRED =====
 const requiredDMP = {
