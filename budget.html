@@ -8,7 +8,8 @@
 <style>
 body{
   font-family:'Segoe UI',sans-serif;
-  background:#f5f7fb;
+  background:#f4f6f9;
+  margin:0;
   padding:20px;
 }
 
@@ -17,9 +18,29 @@ h1{
   margin-bottom:25px;
 }
 
+.main{
+  display:flex;
+  gap:30px;
+  align-items:flex-start;
+}
+
+/* LEFT PANEL */
+.left{
+  flex:1.2;
+}
+
+/* RIGHT PANEL */
+.right{
+  flex:1;
+  background:white;
+  padding:20px;
+  border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
 .grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  grid-template-columns:repeat(2,1fr);
   gap:15px;
   margin-bottom:20px;
 }
@@ -28,18 +49,18 @@ h1{
   background:white;
   padding:15px;
   border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+  box-shadow:0 4px 10px rgba(0,0,0,0.08);
 }
 
 .card h3{
   margin:0;
   font-size:13px;
-  color:#777;
+  color:#666;
 }
 
 .card p{
-  margin-top:6px;
-  font-size:20px;
+  margin-top:8px;
+  font-size:22px;
   font-weight:bold;
 }
 
@@ -50,7 +71,7 @@ h1{
   background:white;
   padding:15px;
   border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.05);
+  box-shadow:0 4px 10px rgba(0,0,0,0.05);
   margin-bottom:20px;
 }
 
@@ -63,10 +84,10 @@ table{
 th,td{
   padding:8px;
   font-size:14px;
+  text-align:left;
 }
 
 th{
-  text-align:left;
   border-bottom:1px solid #ddd;
 }
 
@@ -86,15 +107,13 @@ button{
 
 button:hover{opacity:0.9;}
 
-.chart-wrapper{
-  display:flex;
-  gap:20px;
-  justify-content:center;
+.chart-box{
+  margin-bottom:30px;
 }
 
 canvas{
-  max-width:280px !important;
-  max-height:220px !important;
+  width:100% !important;
+  height:300px !important;
 }
 </style>
 </head>
@@ -102,6 +121,10 @@ canvas{
 <body>
 
 <h1>Simple Budget</h1>
+
+<div class="main">
+
+<div class="left">
 
 <div class="grid">
   <div class="card">
@@ -150,12 +173,22 @@ canvas{
   </table>
 </div>
 
-<div class="section">
-  <h2>Overview</h2>
-  <div class="chart-wrapper">
-    <canvas id="barChart"></canvas>
-    <canvas id="pieChart"></canvas>
-  </div>
+</div>
+
+<div class="right">
+
+<div class="chart-box">
+  <h3>Income vs Expenses</h3>
+  <canvas id="barChart"></canvas>
+</div>
+
+<div class="chart-box">
+  <h3>Expense Distribution</h3>
+  <canvas id="pieChart"></canvas>
+</div>
+
+</div>
+
 </div>
 
 <script>
@@ -180,15 +213,8 @@ function addExpense(){
   render();
 }
 
-function deleteIncome(i){
-  incomes.splice(i,1);
-  render();
-}
-
-function deleteExpense(i){
-  expenses.splice(i,1);
-  render();
-}
+function deleteIncome(i){ incomes.splice(i,1); render(); }
+function deleteExpense(i){ expenses.splice(i,1); render(); }
 
 function render(){
 
@@ -242,7 +268,10 @@ function render(){
       labels:["Income","Expenses"],
       datasets:[{ data:[totalIncome,totalExpenses] }]
     },
-    options:{ plugins:{legend:{display:false}} }
+    options:{
+      plugins:{legend:{display:false}},
+      responsive:true
+    }
   });
 
   if(pieChart) pieChart.destroy();
@@ -252,7 +281,10 @@ function render(){
       labels: expenses.map(e=>e.c),
       datasets:[{ data: expenses.map(e=>e.a) }]
     },
-    options:{ plugins:{legend:{position:'bottom'}} }
+    options:{
+      responsive:true,
+      plugins:{legend:{position:'bottom'}}
+    }
   });
 
 }
