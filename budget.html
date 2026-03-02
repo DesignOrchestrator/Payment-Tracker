@@ -18,7 +18,6 @@ h1{
   margin-bottom:25px;
 }
 
-/* LAYOUT */
 .main{
   display:flex;
   gap:30px;
@@ -35,7 +34,6 @@ h1{
   box-shadow:0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* KPI CARDS */
 .grid{
   display:grid;
   grid-template-columns:repeat(2,1fr);
@@ -65,7 +63,6 @@ h1{
 .positive{color:#16a34a;}
 .negative{color:#dc2626;}
 
-/* SECTIONS */
 .section{
   background:white;
   padding:15px;
@@ -99,6 +96,11 @@ input{
   width:80px;
 }
 
+.percent{
+  font-weight:600;
+  color:#555;
+}
+
 button{
   padding:6px 10px;
   background:#2563eb;
@@ -110,7 +112,6 @@ button{
 
 button:hover{opacity:0.9;}
 
-/* CHARTS */
 .chart-container{
   position:relative;
   width:100%;
@@ -160,7 +161,7 @@ canvas{
 
   <table>
     <thead>
-      <tr><th>Source</th><th>Amount</th><th></th></tr>
+      <tr><th>Source</th><th>Amount</th><th>% of Income</th><th></th></tr>
     </thead>
     <tbody id="incomeTable"></tbody>
   </table>
@@ -174,7 +175,7 @@ canvas{
 
   <table>
     <thead>
-      <tr><th>Category</th><th>Amount</th><th></th></tr>
+      <tr><th>Category</th><th>Amount</th><th>% of Income</th><th></th></tr>
     </thead>
     <tbody id="expenseTable"></tbody>
   </table>
@@ -214,7 +215,6 @@ function addIncome(){
   let s=document.getElementById("incomeSource").value;
   let a=parseFloat(document.getElementById("incomeAmount").value);
   if(!s||!a)return;
-
   incomes.push({s,a});
   document.getElementById("incomeSource").value="";
   document.getElementById("incomeAmount").value="";
@@ -226,7 +226,6 @@ function addExpense(){
   let c=document.getElementById("expenseCategory").value;
   let a=parseFloat(document.getElementById("expenseAmount").value);
   if(!c||!a)return;
-
   expenses.push({c,a});
   document.getElementById("expenseCategory").value="";
   document.getElementById("expenseAmount").value="";
@@ -234,31 +233,20 @@ function addExpense(){
   render();
 }
 
-function updateIncome(index, field, value){
-  if(field==="s") incomes[index].s=value;
-  if(field==="a") incomes[index].a=parseFloat(value)||0;
-  saveData();
-  render();
+function updateIncome(i, field, value){
+  if(field==="s") incomes[i].s=value;
+  if(field==="a") incomes[i].a=parseFloat(value)||0;
+  saveData(); render();
 }
 
-function updateExpense(index, field, value){
-  if(field==="c") expenses[index].c=value;
-  if(field==="a") expenses[index].a=parseFloat(value)||0;
-  saveData();
-  render();
+function updateExpense(i, field, value){
+  if(field==="c") expenses[i].c=value;
+  if(field==="a") expenses[i].a=parseFloat(value)||0;
+  saveData(); render();
 }
 
-function deleteIncome(i){
-  incomes.splice(i,1);
-  saveData();
-  render();
-}
-
-function deleteExpense(i){
-  expenses.splice(i,1);
-  saveData();
-  render();
-}
+function deleteIncome(i){ incomes.splice(i,1); saveData(); render(); }
+function deleteExpense(i){ expenses.splice(i,1); saveData(); render(); }
 
 function render(){
 
@@ -267,11 +255,8 @@ function render(){
   incomeBody.innerHTML="";
   expenseBody.innerHTML="";
 
-  let totalIncome=0;
-  incomes.forEach(i=> totalIncome+=i.a);
-
-  let totalExpenses=0;
-  expenses.forEach(e=> totalExpenses+=e.a);
+  let totalIncome=incomes.reduce((sum,i)=>sum+i.a,0);
+  let totalExpenses=expenses.reduce((sum,e)=>sum+e.a,0);
 
   let monthlyNet=totalIncome-totalExpenses;
   let yearlyNet=monthlyNet*12;
@@ -288,19 +273,23 @@ function render(){
   yEl.className=yearlyNet<0?"negative":"positive";
 
   incomes.forEach((i,index)=>{
+    let percent = totalIncome ? ((i.a/totalIncome)*100).toFixed(1) : 0;
     incomeBody.innerHTML+=`
     <tr>
       <td><input value="${i.s}" onchange="updateIncome(${index},'s',this.value)"></td>
       <td><input type="number" class="small-input" value="${i.a}" onchange="updateIncome(${index},'a',this.value)"></td>
+      <td class="percent">${percent}%</td>
       <td><button onclick="deleteIncome(${index})">X</button></td>
     </tr>`;
   });
 
   expenses.forEach((e,index)=>{
+    let percent = totalIncome ? ((e.a/totalIncome)*100).toFixed(1) : 0;
     expenseBody.innerHTML+=`
     <tr>
       <td><input value="${e.c}" onchange="updateExpense(${index},'c',this.value)"></td>
       <td><input type="number" class="small-input" value="${e.a}" onchange="updateExpense(${index},'a',this.value)"></td>
+      <td class="percent">${percent}%</td>
       <td><button onclick="deleteExpense(${index})">X</button></td>
     </tr>`;
   });
@@ -315,11 +304,7 @@ function render(){
         backgroundColor:["#3b82f6","#ef4444"]
       }]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{legend:{display:false}}
-    }
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
   });
 
   if(pieChart) pieChart.destroy();
@@ -335,9 +320,21 @@ function render(){
       responsive:true,
       maintainAspectRatio:false,
       cutout:'65%',
-      plugins:{legend:{position:'bottom'}}
+      plugins:{
+        legend:{position:'bottom'},
+        tooltip:{
+          callbacks:{
+            label:function(context){
+              let value=context.raw;
+              let percent= totalIncome ? ((value/totalIncome)*100).toFixed(1) : 0;
+              return context.label + ": " + value + " ("+percent+"%)";
+            }
+          }
+        }
+      }
     }
   });
+
 }
 
 render();
