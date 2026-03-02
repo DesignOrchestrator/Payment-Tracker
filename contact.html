@@ -2,209 +2,106 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Debt Command Center</title>
-
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Bank Contact Command Center</title>
 
 <style>
 body { font-family: Arial; padding:20px; background:#f4f6f9;}
-table { border-collapse: collapse; width:100%; margin-top:20px; background:white;}
-th,td { border:1px solid #ddd; padding:8px; text-align:center;}
+h2 { margin-bottom:20px; }
+table { border-collapse: collapse; width:100%; background:white;}
+th, td { border:1px solid #ddd; padding:8px; text-align:left;}
 th { background:#111; color:white;}
-button { padding:6px 10px; margin:3px; cursor:pointer;}
-input { padding:4px; margin:2px;}
-.summary { margin-top:20px; font-weight:bold;}
-.chart-container { width:420px; display:inline-block; margin:20px;}
-.contact-box { font-size:12px; text-align:left;}
+button { padding:4px 8px; margin:2px; cursor:pointer;}
+input, textarea { padding:4px; margin:2px; width:95%; }
 .small { font-size:12px; color:gray;}
 </style>
 </head>
 
 <body>
 
-<h2>Debt Command Center</h2>
+<h2>Bank Contact Command Center</h2>
 
-<input type="file" id="upload" accept=".xlsx">
-<button onclick="exportExcel()">Export Excel</button>
-<button onclick="clearCB()">Clear CB Data</button>
-
-<div class="small" id="lastUpdated"></div>
-
-<table id="comparisonTable">
+<table id="contactTable">
 <thead>
 <tr>
 <th>Bank</th>
-<th>Remaining</th>
-<th>CB</th>
-<th>Difference</th>
-<th>Latest Shortfall</th>
-<th>Cumulative Shortfall</th>
 <th>Contacts</th>
+<th>Add Contact</th>
+<th>Notes</th>
+<th>Last Contacted</th>
 </tr>
 </thead>
 <tbody></tbody>
 </table>
 
-<div class="summary">
-Total Remaining: <span id="totalBaseline">0</span> |
-Total CB: <span id="totalCB">0</span> |
-Total Difference: <span id="totalDiff">0</span>
-</div>
-
-<div>
-<div class="chart-container"><canvas id="totalChart"></canvas></div>
-<div class="chart-container"><canvas id="diffChart"></canvas></div>
-<div class="chart-container" style="width:850px;"><canvas id="shortfallChart"></canvas></div>
-</div>
-
 <script>
 
-// REQUIRED MONTHLY
-const required = {
-"AMEX":162,
-"Citibank":384,
-"DBS":176,
-"HSBC":101,
-"SCB":266.35,
-"Trust":106,
-"UOB":197.68
-};
+const banks = ["AMEX","Citibank","DBS","HSBC","SCB","Trust","UOB"];
 
-// DEFAULT CONTACTS (From Your Letters)
+// Default contacts from your letters
 const defaultContacts = {
 "SCB":[{type:"Phone",value:"18007477000"}],
 "Citibank":[{type:"Phone",value:"62255225"}],
 "DBS":[{type:"Phone",value:"62276864"}],
-"UOB":[{type:"Phone",value:"18003882121"},
-       {type:"Email",value:"Customer.Service@UOBgroup.com"}],
+"UOB":[
+  {type:"Phone",value:"18003882121"},
+  {type:"Email",value:"Customer.Service@UOBgroup.com"}
+],
 "HSBC":[{type:"Phone",value:"66585955"}],
 "AMEX":[{type:"Phone",value:"68801515"}],
 "Trust":[]
 };
 
 let contacts = JSON.parse(localStorage.getItem("bankContacts")) || defaultContacts;
+let notes = JSON.parse(localStorage.getItem("bankNotes")) || {};
+let lastContacted = JSON.parse(localStorage.getItem("bankLastContacted")) || {};
 
-function saveContacts(){
+function saveAll(){
 localStorage.setItem("bankContacts",JSON.stringify(contacts));
+localStorage.setItem("bankNotes",JSON.stringify(notes));
+localStorage.setItem("bankLastContacted",JSON.stringify(lastContacted));
 }
 
-function generateFullMonthRange(payments){
-if(payments.length===0)return[];
-const sorted=payments.map(p=>p.monthRef).sort();
-const start=sorted[0];
-const end=sorted[sorted.length-1];
-let months=[];
-let current=new Date(start+"-01");
-const endDate=new Date(end+"-01");
-while(current<=endDate){
-let y=current.getFullYear();
-let m=String(current.getMonth()+1).padStart(2,'0');
-months.push(`${y}-${m}`);
-current.setMonth(current.getMonth()+1);
-}
-return months;
-}
+function render(){
 
-document.getElementById("upload").addEventListener("change",function(e){
-const file=e.target.files[0];
-const reader=new FileReader();
-reader.onload=function(event){
-const data=new Uint8Array(event.target.result);
-const wb=XLSX.read(data,{type:'array'});
-const sheet=wb.Sheets[wb.SheetNames[0]];
-const json=XLSX.utils.sheet_to_json(sheet);
-localStorage.setItem("cbData",JSON.stringify(json));
-localStorage.setItem("lastUpdated",new Date().toLocaleString());
-generateComparison(json);
-};
-reader.readAsArrayBuffer(file);
-});
-
-function generateComparison(cbData){
-
-const payments=JSON.parse(localStorage.getItem("payments"))||[];
-const baseline=JSON.parse(localStorage.getItem("baseline"))||{};
-const months=generateFullMonthRange(payments);
-const latestMonth=months.length?months[months.length-1]:null;
-
-let tbody=document.querySelector("#comparisonTable tbody");
+const tbody=document.querySelector("#contactTable tbody");
 tbody.innerHTML="";
 
-let totalBaseline=0,totalCB=0,totalDiff=0;
+banks.forEach(bank=>{
 
-cbData.forEach(row=>{
+let contactHTML="";
 
-const bank=row.Banks;
-const cb=parseFloat(row["CB Outstanding"])||0;
-const base=baseline[bank]||0;
-const paidTotal=payments.filter(p=>p.bank===bank).reduce((s,p)=>s+p.amount,0);
-const remain=Math.max(0,base-paidTotal);
-
-let latestShort=0;
-if(latestMonth){
-const paidLatest=payments.filter(p=>p.bank===bank && p.monthRef===latestMonth)
-.reduce((s,p)=>s+p.amount,0);
-latestShort=paidLatest-required[bank];
+(contacts[bank]||[]).forEach((c,index)=>{
+if(c.type==="Phone"){
+contactHTML+=`📞 <a href="tel:${c.value}">${c.value}</a>
+<button onclick="deleteContact('${bank}',${index})">x</button><br>`;
+}else{
+contactHTML+=`📧 <a href="mailto:${c.value}">${c.value}</a>
+<button onclick="deleteContact('${bank}',${index})">x</button><br>`;
 }
-
-let cumulative=0;
-months.forEach(month=>{
-const paidMonth=payments.filter(p=>p.bank===bank && p.monthRef===month)
-.reduce((s,p)=>s+p.amount,0);
-cumulative+=paidMonth-required[bank];
 });
-
-const diff=cb-remain;
-
-totalBaseline+=remain;
-totalCB+=cb;
-totalDiff+=diff;
-
-let diffColor=diff>0?"red":diff<0?"green":"gray";
-let diffText=diff>0?`+${diff.toFixed(2)} (CB More)`
-:diff<0?`${diff.toFixed(2)} (CB Less)`
-:"0.00 (Match)";
 
 tbody.innerHTML+=`
 <tr>
-<td>${bank}</td>
-<td>${remain.toFixed(2)}</td>
-<td>${cb.toFixed(2)}</td>
-<td style="color:${diffColor};font-weight:bold">${diffText}</td>
-<td>${latestShort.toFixed(2)}</td>
-<td>${cumulative.toFixed(2)}</td>
-<td>${renderContacts(bank)}</td>
+<td><b>${bank}</b></td>
+<td>${contactHTML}</td>
+<td>
+<input placeholder="Phone or Email" id="new_${bank}">
+<button onclick="addContact('${bank}')">Add</button>
+</td>
+<td>
+<textarea rows="3" onchange="saveNote('${bank}',this.value)">
+${notes[bank]||""}
+</textarea>
+</td>
+<td>
+<input type="date" value="${lastContacted[bank]||""}" 
+onchange="saveLast('${bank}',this.value)">
+</td>
 </tr>
 `;
+
 });
 
-document.getElementById("totalBaseline").innerText=totalBaseline.toFixed(2);
-document.getElementById("totalCB").innerText=totalCB.toFixed(2);
-document.getElementById("totalDiff").innerText=totalDiff.toFixed(2);
-document.getElementById("lastUpdated").innerText="Last Updated: "+localStorage.getItem("lastUpdated");
-
-renderCharts();
-}
-
-function renderContacts(bank){
-
-let html='<div class="contact-box">';
-
-(contacts[bank]||[]).forEach((c,i)=>{
-if(c.type==="Phone"){
-html+=`📞 <a href="tel:${c.value}">${c.value}</a><br>`;
-}else{
-html+=`📧 <a href="mailto:${c.value}">${c.value}</a><br>`;
-}
-});
-
-html+=`
-<input placeholder="Phone/Email" id="new_${bank}">
-<button onclick="addContact('${bank}')">+</button>
-</div>`;
-
-return html;
 }
 
 function addContact(bank){
@@ -213,42 +110,29 @@ if(!val)return;
 let type=val.includes("@")?"Email":"Phone";
 if(!contacts[bank])contacts[bank]=[];
 contacts[bank].push({type,value:val});
-saveContacts();
-generateComparison(JSON.parse(localStorage.getItem("cbData")));
+saveAll();
+render();
 }
 
-function renderCharts(){
-new Chart(document.getElementById("totalChart"),{
-type:'doughnut',
-data:{labels:["Remaining","CB"],datasets:[{data:[
-parseFloat(document.getElementById("totalBaseline").innerText),
-parseFloat(document.getElementById("totalCB").innerText)
-]}]}
-});
+function deleteContact(bank,index){
+contacts[bank].splice(index,1);
+saveAll();
+render();
 }
 
-function exportExcel(){
-const data=[["Bank","Remaining","CB"]];
-document.querySelectorAll("#comparisonTable tbody tr").forEach(r=>{
-let cells=r.querySelectorAll("td");
-data.push([cells[0].innerText,cells[1].innerText,cells[2].innerText]);
-});
-const ws=XLSX.utils.aoa_to_sheet(data);
-const wb=XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb,ws,"Debt");
-XLSX.writeFile(wb,"Debt_Command_Center.xlsx");
+function saveNote(bank,value){
+notes[bank]=value;
+saveAll();
 }
 
-function clearCB(){
-localStorage.removeItem("cbData");
-location.reload();
+function saveLast(bank,value){
+lastContacted[bank]=value;
+saveAll();
 }
 
-window.onload=function(){
-let saved=localStorage.getItem("cbData");
-if(saved)generateComparison(JSON.parse(saved));
-};
+render();
 
 </script>
+
 </body>
 </html>
