@@ -11,53 +11,57 @@ body {
   font-family: "Segoe UI", sans-serif;
   background: linear-gradient(135deg, #eef2f7, #f9fbff);
   margin: 0;
-  padding: 30px;
+  padding: 25px;
   color: #222;
 }
 
 h2 {
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   font-weight: 600;
+  font-size: 20px;
 }
 
 .small {
-  font-size: 12px;
+  font-size: 11px;
   color: #777;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
 }
 
-.card-container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
 }
 
 .card {
   background: white;
-  padding: 18px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  padding: 14px;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+  font-size: 12px;
 }
 
 .card-header {
   font-weight: 600;
-  margin-bottom: 10px;
-  font-size: 15px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .contact-item {
-  font-size: 13px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 button {
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 3px 7px;
+  border-radius: 5px;
   border: none;
   background: #111;
   color: white;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 button:hover {
@@ -66,25 +70,32 @@ button:hover {
 
 input, textarea {
   width: 100%;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 4px 6px;
+  border-radius: 5px;
   border: 1px solid #ddd;
-  font-size: 12px;
-  margin-top: 5px;
+  font-size: 11px;
+  margin-top: 4px;
 }
 
 textarea {
   resize: vertical;
-  margin-bottom: 10px;
 }
 
 a {
   text-decoration: none;
   color: #0066cc;
+  font-size: 11px;
 }
 
 a:hover {
   text-decoration: underline;
+}
+
+/* Responsive for mobile */
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 </head>
@@ -92,18 +103,16 @@ a:hover {
 <body>
 
 <h2>🏦 Bank & CCS Contact Center</h2>
-<div class="small">All data stored locally in your browser</div>
+<div class="small">Compact View • Stored locally in browser</div>
 
-<div class="card-container" id="cardContainer"></div>
+<div class="grid" id="cardContainer"></div>
 
 <script>
 
-// Institutions
 const institutions = [
 "AMEX","Citibank","DBS","HSBC","SCB","Trust","UOB","CCS"
 ];
 
-// Default contacts
 const defaultContacts = {
 "SCB":[{type:"Phone",value:"18007477000"}],
 "Citibank":[{type:"Phone",value:"62255225"}],
@@ -132,7 +141,6 @@ function saveAll(){
 }
 
 function render(){
-
   const container = document.getElementById("cardContainer");
   container.innerHTML = "";
 
@@ -158,16 +166,19 @@ function render(){
       }
 
       contactHTML += `
-      <div class="contact-item">
-        ${icon} ${link}
-        <button onclick="deleteContact('${name}',${index})">x</button>
-      </div>
+        <div class="contact-item">
+          ${icon} ${link}
+          <button onclick="deleteContact('${name}',${index})">x</button>
+        </div>
       `;
     });
 
     container.innerHTML += `
       <div class="card">
-        <div class="card-header">${name}</div>
+        <div class="card-header">
+          <span>${name}</span>
+          <span>${(contacts[name]||[]).length} contact(s)</span>
+        </div>
 
         ${contactHTML}
 
@@ -175,15 +186,13 @@ function render(){
         <button onclick="addContact('${name}')">Add</button>
 
         <textarea rows="2" placeholder="Notes..."
-        onchange="saveNote('${name}',this.value)">${notes[name]||""}</textarea>
+          onchange="saveNote('${name}',this.value)">${notes[name]||""}</textarea>
 
-        <div class="small">Last Contacted:</div>
         <input type="date" value="${lastContacted[name]||""}"
-        onchange="saveLast('${name}',this.value)">
+          onchange="saveLast('${name}',this.value)">
       </div>
     `;
   });
-
 }
 
 function addContact(name){
