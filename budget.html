@@ -6,84 +6,95 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background:#f4f6f9;
+body{
+  font-family:'Segoe UI',sans-serif;
+  background:#f5f7fb;
   padding:20px;
 }
 
-h1 { text-align:center; margin-bottom:25px; }
-
-.grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
-  gap:15px;
+h1{
+  text-align:center;
   margin-bottom:25px;
 }
 
-.card {
-  background:white;
-  padding:16px;
-  border-radius:10px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:15px;
+  margin-bottom:20px;
 }
 
-.card h3 {
+.card{
+  background:white;
+  padding:15px;
+  border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+.card h3{
   margin:0;
   font-size:13px;
-  color:#666;
+  color:#777;
 }
 
-.card p {
-  margin-top:8px;
-  font-size:22px;
+.card p{
+  margin-top:6px;
+  font-size:20px;
   font-weight:bold;
 }
 
-.positive { color:#16a34a; }
-.negative { color:#dc2626; }
+.positive{color:#16a34a;}
+.negative{color:#dc2626;}
 
-table {
-  width:100%;
-  border-collapse:collapse;
-  margin-bottom:20px;
-  background:white;
-  border-radius:10px;
-  overflow:hidden;
-  box-shadow:0 4px 10px rgba(0,0,0,0.05);
-}
-
-th, td {
-  padding:10px;
-}
-
-th {
-  background:#111827;
-  color:white;
-  text-align:left;
-}
-
-input {
-  padding:6px;
-  width:95%;
-}
-
-button {
-  padding:6px 10px;
-  cursor:pointer;
-  border:none;
-  background:#2563eb;
-  color:white;
-  border-radius:6px;
-}
-
-button:hover { opacity:0.9; }
-
-.chart-box {
+.section{
   background:white;
   padding:15px;
-  border-radius:10px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.05);
+  border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.05);
+  margin-bottom:20px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+th,td{
+  padding:8px;
+  font-size:14px;
+}
+
+th{
+  text-align:left;
+  border-bottom:1px solid #ddd;
+}
+
+input{
+  padding:6px;
+  margin-right:5px;
+}
+
+button{
+  padding:6px 10px;
+  background:#2563eb;
+  color:white;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+button:hover{opacity:0.9;}
+
+.chart-wrapper{
+  display:flex;
+  gap:20px;
+  justify-content:center;
+}
+
+canvas{
+  max-width:280px !important;
+  max-height:220px !important;
 }
 </style>
 </head>
@@ -102,162 +113,149 @@ button:hover { opacity:0.9; }
     <p id="totalExpenses">0</p>
   </div>
   <div class="card">
-    <h3>Monthly Net Cashflow</h3>
+    <h3>Monthly Net</h3>
     <p id="monthlyNet">0</p>
   </div>
   <div class="card">
-    <h3>Yearly Cashflow</h3>
-    <p id="yearlyNet">0</p>
-  </div>
-  <div class="card">
     <h3>Yearly Projection</h3>
-    <p id="projection">0</p>
+    <p id="yearlyNet">0</p>
   </div>
 </div>
 
-<h2>Income</h2>
-<input placeholder="Source" id="incomeSource">
-<input type="number" placeholder="Amount" id="incomeAmount">
-<button onclick="addIncome()">Add</button>
+<div class="section">
+  <h2>Income</h2>
+  <input placeholder="Source" id="incomeSource">
+  <input type="number" placeholder="Amount" id="incomeAmount">
+  <button onclick="addIncome()">Add</button>
 
-<table>
-<thead>
-<tr><th>Source</th><th>Amount</th><th>Delete</th></tr>
-</thead>
-<tbody id="incomeTable"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr><th>Source</th><th>Amount</th><th></th></tr>
+    </thead>
+    <tbody id="incomeTable"></tbody>
+  </table>
+</div>
 
-<h2>Expenses</h2>
-<input placeholder="Category" id="expenseCategory">
-<input type="number" placeholder="Amount" id="expenseAmount">
-<button onclick="addExpense()">Add</button>
+<div class="section">
+  <h2>Expenses</h2>
+  <input placeholder="Category" id="expenseCategory">
+  <input type="number" placeholder="Amount" id="expenseAmount">
+  <button onclick="addExpense()">Add</button>
 
-<table>
-<thead>
-<tr><th>Category</th><th>Amount</th><th>Delete</th></tr>
-</thead>
-<tbody id="expenseTable"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr><th>Category</th><th>Amount</th><th></th></tr>
+    </thead>
+    <tbody id="expenseTable"></tbody>
+  </table>
+</div>
 
-<div class="chart-box">
-  <canvas id="summaryChart"></canvas>
+<div class="section">
+  <h2>Overview</h2>
+  <div class="chart-wrapper">
+    <canvas id="barChart"></canvas>
+    <canvas id="pieChart"></canvas>
+  </div>
 </div>
 
 <script>
 
-// REQUIRED MONTHLY DMP (HIDDEN — DO NOT DISPLAY)
-const REQUIRED_DMP = 1395.35;
-
-let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
-let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
-
-function save(){
-localStorage.setItem("budgetIncome", JSON.stringify(incomes));
-localStorage.setItem("budgetExpenses", JSON.stringify(expenses));
-}
+let incomes=[];
+let expenses=[];
+let barChart,pieChart;
 
 function addIncome(){
-let s=document.getElementById("incomeSource").value;
-let a=parseFloat(document.getElementById("incomeAmount").value);
-if(!s||!a)return;
-incomes.push({s,a});
-save(); render();
+  let s=document.getElementById("incomeSource").value;
+  let a=parseFloat(document.getElementById("incomeAmount").value);
+  if(!s||!a)return;
+  incomes.push({s,a});
+  render();
 }
 
 function addExpense(){
-let c=document.getElementById("expenseCategory").value;
-let a=parseFloat(document.getElementById("expenseAmount").value);
-if(!c||!a)return;
-expenses.push({c,a});
-save(); render();
+  let c=document.getElementById("expenseCategory").value;
+  let a=parseFloat(document.getElementById("expenseAmount").value);
+  if(!c||!a)return;
+  expenses.push({c,a});
+  render();
 }
 
-function deleteIncome(i){ incomes.splice(i,1); save(); render(); }
-function deleteExpense(i){ expenses.splice(i,1); save(); render(); }
-
-function getActualDebt(){
-let payments=JSON.parse(localStorage.getItem("payments"))||[];
-return payments.reduce((sum,p)=>sum+p.amount,0);
+function deleteIncome(i){
+  incomes.splice(i,1);
+  render();
 }
 
-let chart;
+function deleteExpense(i){
+  expenses.splice(i,1);
+  render();
+}
 
 function render(){
 
-let incomeBody=document.getElementById("incomeTable");
-let expenseBody=document.getElementById("expenseTable");
-incomeBody.innerHTML=""; expenseBody.innerHTML="";
+  let incomeBody=document.getElementById("incomeTable");
+  let expenseBody=document.getElementById("expenseTable");
+  incomeBody.innerHTML="";
+  expenseBody.innerHTML="";
 
-let totalIncome=0;
-incomes.forEach(i=> totalIncome+=i.a);
+  let totalIncome=0;
+  incomes.forEach(i=> totalIncome+=i.a);
 
-let totalExpenses=0;
-expenses.forEach(e=> totalExpenses+=e.a);
+  let totalExpenses=0;
+  expenses.forEach(e=> totalExpenses+=e.a);
 
-let actualDebt=getActualDebt();
+  let monthlyNet=totalIncome-totalExpenses;
+  let yearlyNet=monthlyNet*12;
 
-// CORE CALCULATIONS
-let monthlyNet = totalIncome - totalExpenses - actualDebt;
-let yearlyNet = monthlyNet * 12;
+  document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
+  document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
 
-// If underpay required DMP, projection adjusts
-let dmpShortfall = REQUIRED_DMP - actualDebt;
-if(dmpShortfall < 0) dmpShortfall = 0;
+  let mEl=document.getElementById("monthlyNet");
+  mEl.innerText=monthlyNet.toFixed(2);
+  mEl.className=monthlyNet<0?"negative":"positive";
 
-let adjustedMonthly = monthlyNet - dmpShortfall;
-let yearlyProjection = adjustedMonthly * 12;
+  let yEl=document.getElementById("yearlyNet");
+  yEl.innerText=yearlyNet.toFixed(2);
+  yEl.className=yearlyNet<0?"negative":"positive";
 
-// DISPLAY
-document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
-document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
+  incomes.forEach((i,index)=>{
+    incomeBody.innerHTML+=`
+    <tr>
+      <td>${i.s}</td>
+      <td>${i.a}</td>
+      <td><button onclick="deleteIncome(${index})">X</button></td>
+    </tr>`;
+  });
 
-let mEl=document.getElementById("monthlyNet");
-mEl.innerText=monthlyNet.toFixed(2);
-mEl.className=monthlyNet<0?"negative":"positive";
+  expenses.forEach((e,index)=>{
+    expenseBody.innerHTML+=`
+    <tr>
+      <td>${e.c}</td>
+      <td>${e.a}</td>
+      <td><button onclick="deleteExpense(${index})">X</button></td>
+    </tr>`;
+  });
 
-let yEl=document.getElementById("yearlyNet");
-yEl.innerText=yearlyNet.toFixed(2);
-yEl.className=yearlyNet<0?"negative":"positive";
+  if(barChart) barChart.destroy();
+  barChart=new Chart(document.getElementById("barChart"),{
+    type:'bar',
+    data:{
+      labels:["Income","Expenses"],
+      datasets:[{ data:[totalIncome,totalExpenses] }]
+    },
+    options:{ plugins:{legend:{display:false}} }
+  });
 
-let pEl=document.getElementById("projection");
-pEl.innerText=yearlyProjection.toFixed(2);
-pEl.className=yearlyProjection<0?"negative":"positive";
-
-// TABLE RENDER
-incomes.forEach((i,index)=>{
-incomeBody.innerHTML+=`
-<tr>
-<td>${i.s}</td>
-<td>${i.a}</td>
-<td><button onclick="deleteIncome(${index})">X</button></td>
-</tr>`;
-});
-
-expenses.forEach((e,index)=>{
-expenseBody.innerHTML+=`
-<tr>
-<td>${e.c}</td>
-<td>${e.a}</td>
-<td><button onclick="deleteExpense(${index})">X</button></td>
-</tr>`;
-});
-
-// CHART
-if(chart) chart.destroy();
-
-chart=new Chart(document.getElementById("summaryChart"),{
-type:'bar',
-data:{
-labels:["Income","Expenses","Debt Paid"],
-datasets:[{
-data:[totalIncome,totalExpenses,actualDebt]
-}]
-}
-});
+  if(pieChart) pieChart.destroy();
+  pieChart=new Chart(document.getElementById("pieChart"),{
+    type:'doughnut',
+    data:{
+      labels: expenses.map(e=>e.c),
+      datasets:[{ data: expenses.map(e=>e.a) }]
+    },
+    options:{ plugins:{legend:{position:'bottom'}} }
+  });
 
 }
-
-render();
 
 </script>
 
