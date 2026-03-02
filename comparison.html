@@ -14,7 +14,7 @@ th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
 th { background: #111; color: white; }
 button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
 .summary { margin-top: 20px; font-size: 18px; font-weight:bold;}
-.chart-container { width: 350px; display:inline-block; margin:20px;}
+.chart-container { width: 400px; display:inline-block; margin:20px;}
 .insight { margin-top:20px; background:white; padding:15px; }
 .small { font-size:12px; color:gray; margin-top:5px;}
 </style>
@@ -22,7 +22,7 @@ button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
 
 <body>
 
-<h2>Per Bank Comparison (Baseline vs CB)</h2>
+<h2>Baseline vs CB Comparison</h2>
 
 <input type="file" id="upload" accept=".xlsx" />
 <button onclick="exportExcel()">Export to Excel</button>
@@ -37,13 +37,15 @@ button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
 <th>Baseline Remaining</th>
 <th>CB Outstanding</th>
 <th>Difference</th>
+<th>Latest Month Shortfall</th>
+<th>Cumulative Shortfall</th>
 </tr>
 </thead>
 <tbody></tbody>
 </table>
 
 <div class="summary">
-<p>Total Baseline: <span id="totalBaseline">0</span></p>
+<p>Total Baseline Remaining: <span id="totalBaseline">0</span></p>
 <p>Total CB: <span id="totalCB">0</span></p>
 <p>Total Difference: <span id="totalDiff">0</span></p>
 </div>
@@ -56,28 +58,34 @@ button { padding:8px 12px; margin-top:10px; margin-right:10px; cursor:pointer; }
 <div class="chart-container">
 <canvas id="diffChart"></canvas>
 </div>
+
+<div class="chart-container" style="width:800px;">
+<canvas id="shortfallChart"></canvas>
+</div>
 </div>
 
 <div class="insight" id="insightBox"></div>
 
 <script>
 
-const baselineData = {
-  "AMEX": 5662.16,
-  "Citibank": 14701.15,
-  "DBS": 6780.57,
-  "HSBC": 3742.11,
-  "SCB": 8734.24,
-  "Trust": 3734.96,
-  "UOB": 7498.67
+const required = {
+"AMEX":162,
+"Citibank":384,
+"DBS":176,
+"HSBC":101,
+"SCB":266.35,
+"Trust":106,
+"UOB":197.68
 };
 
 let comparisonRows = [];
 let totalBaseline = 0;
 let totalCB = 0;
 let totalDiff = 0;
+
 let totalChartInstance = null;
 let diffChartInstance = null;
+let shortfallChartInstance = null;
 
 document.getElementById('upload').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -100,6 +108,12 @@ document.getElementById('upload').addEventListener('change', function(e) {
 
 function generateComparison(cbData) {
 
+  const payments = JSON.parse(localStorage.getItem("payments")) || [];
+  const baseline = JSON.parse(localStorage.getItem("baseline")) || {};
+
+  const months = [...new Set(payments.map(p=>p.monthRef))].sort();
+  const latestMonth = months[months.length - 1];
+
   const tbody = document.querySelector("#comparisonTable tbody");
   tbody.innerHTML = "";
 
@@ -112,37 +126,64 @@ function generateComparison(cbData) {
 
     const bank = row.Banks;
     const cbOutstanding = parseFloat(row["CB Outstanding"]);
-    const baselineRemaining = baselineData[bank] || 0;
-    const diff = cbOutstanding - baselineRemaining;
 
-    totalBaseline += baselineRemaining;
+    const base = baseline[bank] || 0;
+
+    const paidTotal = payments
+      .filter(p=>p.bank===bank)
+      .reduce((s,p)=>s+p.amount,0);
+
+    const remain = Math.max(0, base - paidTotal);
+
+    // Latest month shortfall
+    const latestPaid = payments
+      .filter(p=>p.bank===bank && p.monthRef===latestMonth)
+      .reduce((s,p)=>s+p.amount,0);
+
+    const latestShortfall = latestPaid - required[bank];
+
+    // Cumulative shortfall
+    const cumulativeShortfall = payments
+      .filter(p=>p.bank===bank)
+      .reduce((sum,p)=>{
+        return sum + (p.amount - required[bank]);
+      },0);
+
+    const diff = cbOutstanding - remain;
+
+    totalBaseline += remain;
     totalCB += cbOutstanding;
     totalDiff += diff;
 
-    comparisonRows.push([bank, baselineRemaining, cbOutstanding, diff]);
+    comparisonRows.push([
+      bank, remain, cbOutstanding, diff,
+      latestShortfall, cumulativeShortfall
+    ]);
 
     let diffText = "";
     let diffStyle = "";
 
     if (diff > 0) {
       diffText = `+${diff.toFixed(2)} (CB More)`;
-      diffStyle = "color:red; font-weight:bold;";
+      diffStyle = "color:red;font-weight:bold;";
     } else if (diff < 0) {
       diffText = `${diff.toFixed(2)} (CB Less)`;
-      diffStyle = "color:green; font-weight:bold;";
+      diffStyle = "color:green;font-weight:bold;";
     } else {
-      diffText = `0.00 (Match)`;
-      diffStyle = "color:gray; font-weight:bold;";
+      diffText = "0.00 (Match)";
+      diffStyle = "color:gray;font-weight:bold;";
     }
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
+    tbody.innerHTML += `
+    <tr>
       <td>${bank}</td>
-      <td>${baselineRemaining.toFixed(2)}</td>
+      <td>${remain.toFixed(2)}</td>
       <td>${cbOutstanding.toFixed(2)}</td>
       <td style="${diffStyle}">${diffText}</td>
+      <td>${latestShortfall.toFixed(2)}</td>
+      <td>${cumulativeShortfall.toFixed(2)}</td>
+    </tr>
     `;
-    tbody.appendChild(tr);
   });
 
   document.getElementById("totalBaseline").innerText = totalBaseline.toFixed(2);
@@ -153,81 +194,76 @@ function generateComparison(cbData) {
     "Last Updated: " + localStorage.getItem("lastUpdated");
 
   renderCharts();
-  renderInsights();
+  renderInsights(latestMonth);
 }
 
 function renderCharts() {
 
   if (totalChartInstance) totalChartInstance.destroy();
   if (diffChartInstance) diffChartInstance.destroy();
+  if (shortfallChartInstance) shortfallChartInstance.destroy();
 
   totalChartInstance = new Chart(document.getElementById("totalChart"), {
     type: 'doughnut',
     data: {
-      labels: ["Baseline Total", "CB Total"],
-      datasets: [{
-        data: [totalBaseline, totalCB]
-      }]
+      labels: ["Baseline Remaining", "CB Total"],
+      datasets: [{ data: [totalBaseline, totalCB] }]
     }
   });
-
-  const diffData = comparisonRows.map(r => Math.abs(r[3]));
-  const labels = comparisonRows.map(r => r[0]);
 
   diffChartInstance = new Chart(document.getElementById("diffChart"), {
     type: 'doughnut',
     data: {
-      labels: labels,
-      datasets: [{
-        data: diffData
-      }]
+      labels: comparisonRows.map(r=>r[0]),
+      datasets: [{ data: comparisonRows.map(r=>Math.abs(r[3])) }]
+    }
+  });
+
+  shortfallChartInstance = new Chart(document.getElementById("shortfallChart"), {
+    type: 'bar',
+    data: {
+      labels: comparisonRows.map(r=>r[0]),
+      datasets: [
+        { label:"Latest Shortfall", data: comparisonRows.map(r=>r[4]) },
+        { label:"Cumulative Shortfall", data: comparisonRows.map(r=>r[5]) },
+        { label:"CB Difference", data: comparisonRows.map(r=>r[3]) }
+      ]
     }
   });
 }
 
-function renderInsights() {
-
-  let sorted = [...comparisonRows].sort((a,b)=>b[3]-a[3]);
-  let largestDiff = sorted[0];
-
+function renderInsights(latestMonth){
   document.getElementById("insightBox").innerHTML = `
-    <h3>Insights</h3>
-    <p>CB is <strong>${totalDiff.toFixed(2)}</strong> higher than your tracker.</p>
-    <p>Largest discrepancy: <strong>${largestDiff[0]}</strong> 
-    (${largestDiff[3].toFixed(2)})</p>
-    <p>CB Total is ${( (totalCB/totalBaseline -1)*100 ).toFixed(2)}% higher than baseline.</p>
+  <h3>Insights</h3>
+  <p>Latest Month Analysed: <strong>${latestMonth}</strong></p>
+  <p>Total CB is ${totalDiff.toFixed(2)} different from tracker remaining.</p>
   `;
 }
 
-function exportExcel() {
-
+function exportExcel(){
   const ws_data = [
-    ["Bank", "Baseline Remaining", "CB Outstanding", "Difference"],
-    ...comparisonRows,
-    ["TOTAL", totalBaseline, totalCB, totalDiff]
+    ["Bank","Remaining","CB","Difference","Latest Shortfall","Cumulative Shortfall"],
+    ...comparisonRows
   ];
-
   const ws = XLSX.utils.aoa_to_sheet(ws_data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Comparison");
-
   XLSX.writeFile(wb, "Baseline_vs_CB_Comparison.xlsx");
 }
 
-function clearData() {
+function clearData(){
   localStorage.removeItem("cbData");
   localStorage.removeItem("lastUpdated");
   location.reload();
 }
 
-window.onload = function() {
+window.onload = function(){
   const savedData = localStorage.getItem("cbData");
-  if (savedData) {
+  if(savedData){
     generateComparison(JSON.parse(savedData));
   }
 };
 
 </script>
-
 </body>
 </html>
