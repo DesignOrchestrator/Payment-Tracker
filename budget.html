@@ -2,339 +2,228 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Simple Budget</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Bank Contact Command Center</title>
 
 <style>
-body{
-  font-family:'Segoe UI',sans-serif;
-  background:#f4f6f9;
-  margin:0;
-  padding:20px;
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(135deg, #eef2f7, #f9fbff);
+  margin: 0;
+  padding: 25px;
+  color: #222;
 }
 
-h1{
-  text-align:center;
-  margin-bottom:25px;
+h2 {
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 20px;
 }
 
-.main{
-  display:flex;
-  gap:30px;
-  align-items:flex-start;
+.small {
+  font-size: 11px;
+  color: #777;
+  margin-bottom: 20px;
 }
 
-.left{ flex:1.2; }
-
-.right{
-  flex:1;
-  background:white;
-  padding:20px;
-  border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
 }
 
-.grid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:15px;
-  margin-bottom:20px;
+.card {
+  background: white;
+  padding: 14px;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+  font-size: 12px;
 }
 
-.card{
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+.card-header {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.card h3{
-  margin:0;
-  font-size:13px;
-  color:#666;
+.contact-item {
+  margin-bottom: 4px;
 }
 
-.card p{
-  margin-top:8px;
-  font-size:22px;
-  font-weight:bold;
+button {
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: none;
+  background: #111;
+  color: white;
+  cursor: pointer;
+  font-size: 11px;
 }
 
-.positive{color:#16a34a;}
-.negative{color:#dc2626;}
-
-.section{
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.05);
-  margin-bottom:20px;
+button:hover {
+  background: #333;
 }
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:10px;
+input, textarea {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  font-size: 11px;
+  margin-top: 4px;
 }
 
-th,td{
-  padding:8px;
-  font-size:14px;
-  text-align:left;
+textarea {
+  resize: vertical;
 }
 
-th{
-  border-bottom:1px solid #ddd;
+a {
+  text-decoration: none;
+  color: #0066cc;
+  font-size: 11px;
 }
 
-input{
-  padding:6px;
-  width:90%;
+a:hover {
+  text-decoration: underline;
 }
 
-.small-input{
-  width:80px;
-}
-
-.percent{
-  font-weight:600;
-  color:#555;
-}
-
-button{
-  padding:6px 10px;
-  background:#2563eb;
-  color:white;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-button:hover{opacity:0.9;}
-
-.chart-container{
-  position:relative;
-  width:100%;
-  height:350px;
-  margin-bottom:30px;
-}
-
-canvas{
-  width:100% !important;
-  height:100% !important;
+/* Responsive for mobile */
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 </head>
 
 <body>
 
-<h1>Simple Budget</h1>
+<h2>🏦 Bank & CCS Contact Center</h2>
+<div class="small">Compact View • Stored locally in browser</div>
 
-<div class="main">
-
-<div class="left">
-
-<div class="grid">
-  <div class="card">
-    <h3>Total Income</h3>
-    <p id="totalIncome">0</p>
-  </div>
-  <div class="card">
-    <h3>Total Expenses</h3>
-    <p id="totalExpenses">0</p>
-  </div>
-  <div class="card">
-    <h3>Monthly Net</h3>
-    <p id="monthlyNet">0</p>
-  </div>
-  <div class="card">
-    <h3>Yearly Projection</h3>
-    <p id="yearlyNet">0</p>
-  </div>
-</div>
-
-<div class="section">
-  <h2>Income</h2>
-  <input placeholder="Source" id="incomeSource">
-  <input type="number" placeholder="Amount" id="incomeAmount">
-  <button onclick="addIncome()">Add</button>
-
-  <table>
-    <thead>
-      <tr><th>Source</th><th>Amount</th><th>% of Income</th><th></th></tr>
-    </thead>
-    <tbody id="incomeTable"></tbody>
-  </table>
-</div>
-
-<div class="section">
-  <h2>Expenses</h2>
-  <input placeholder="Category" id="expenseCategory">
-  <input type="number" placeholder="Amount" id="expenseAmount">
-  <button onclick="addExpense()">Add</button>
-
-  <table>
-    <thead>
-      <tr><th>Category</th><th>Amount</th><th>% of Income</th><th></th></tr>
-    </thead>
-    <tbody id="expenseTable"></tbody>
-  </table>
-</div>
-
-</div>
-
-<div class="right">
-
-<h3>Income vs Expenses</h3>
-<div class="chart-container">
-  <canvas id="barChart"></canvas>
-</div>
-
-<h3>Expense Distribution</h3>
-<div class="chart-container">
-  <canvas id="pieChart"></canvas>
-</div>
-
-</div>
-
-</div>
+<div class="grid" id="cardContainer"></div>
 
 <script>
 
-let incomes = JSON.parse(localStorage.getItem("simpleBudgetIncome")) || [];
-let expenses = JSON.parse(localStorage.getItem("simpleBudgetExpenses")) || [];
+const institutions = [
+"AMEX","Citibank","DBS","HSBC","SCB","Trust","UOB","CCS"
+];
 
-let barChart, pieChart;
+const defaultContacts = {
+"SCB":[{type:"Phone",value:"18007477000"}],
+"Citibank":[{type:"Phone",value:"62255225"}],
+"DBS":[{type:"Phone",value:"62276864"}],
+"UOB":[
+  {type:"Phone",value:"18003882121"},
+  {type:"Email",value:"Customer.Service@UOBgroup.com"}
+],
+"HSBC":[{type:"Phone",value:"66585955"}],
+"AMEX":[{type:"Phone",value:"68801515"}],
+"Trust":[],
+"CCS":[
+  {type:"Phone",value:"62555227"},
+  {type:"Website",value:"https://www.ccs.org.sg"}
+]
+};
 
-function saveData(){
-  localStorage.setItem("simpleBudgetIncome", JSON.stringify(incomes));
-  localStorage.setItem("simpleBudgetExpenses", JSON.stringify(expenses));
+let contacts = JSON.parse(localStorage.getItem("bankContacts")) || defaultContacts;
+let notes = JSON.parse(localStorage.getItem("bankNotes")) || {};
+let lastContacted = JSON.parse(localStorage.getItem("bankLastContacted")) || {};
+
+function saveAll(){
+  localStorage.setItem("bankContacts",JSON.stringify(contacts));
+  localStorage.setItem("bankNotes",JSON.stringify(notes));
+  localStorage.setItem("bankLastContacted",JSON.stringify(lastContacted));
 }
-
-function addIncome(){
-  let s=document.getElementById("incomeSource").value;
-  let a=parseFloat(document.getElementById("incomeAmount").value);
-  if(!s||!a)return;
-  incomes.push({s,a});
-  document.getElementById("incomeSource").value="";
-  document.getElementById("incomeAmount").value="";
-  saveData();
-  render();
-}
-
-function addExpense(){
-  let c=document.getElementById("expenseCategory").value;
-  let a=parseFloat(document.getElementById("expenseAmount").value);
-  if(!c||!a)return;
-  expenses.push({c,a});
-  document.getElementById("expenseCategory").value="";
-  document.getElementById("expenseAmount").value="";
-  saveData();
-  render();
-}
-
-function updateIncome(i, field, value){
-  if(field==="s") incomes[i].s=value;
-  if(field==="a") incomes[i].a=parseFloat(value)||0;
-  saveData(); render();
-}
-
-function updateExpense(i, field, value){
-  if(field==="c") expenses[i].c=value;
-  if(field==="a") expenses[i].a=parseFloat(value)||0;
-  saveData(); render();
-}
-
-function deleteIncome(i){ incomes.splice(i,1); saveData(); render(); }
-function deleteExpense(i){ expenses.splice(i,1); saveData(); render(); }
 
 function render(){
+  const container = document.getElementById("cardContainer");
+  container.innerHTML = "";
 
-  let incomeBody=document.getElementById("incomeTable");
-  let expenseBody=document.getElementById("expenseTable");
-  incomeBody.innerHTML="";
-  expenseBody.innerHTML="";
+  institutions.forEach(name => {
 
-  let totalIncome=incomes.reduce((sum,i)=>sum+i.a,0);
-  let totalExpenses=expenses.reduce((sum,e)=>sum+e.a,0);
+    let contactHTML = "";
 
-  let monthlyNet=totalIncome-totalExpenses;
-  let yearlyNet=monthlyNet*12;
+    (contacts[name] || []).forEach((c,index)=>{
 
-  document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
-  document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
+      let icon = "📞";
+      let link = "";
 
-  let mEl=document.getElementById("monthlyNet");
-  mEl.innerText=monthlyNet.toFixed(2);
-  mEl.className=monthlyNet<0?"negative":"positive";
-
-  let yEl=document.getElementById("yearlyNet");
-  yEl.innerText=yearlyNet.toFixed(2);
-  yEl.className=yearlyNet<0?"negative":"positive";
-
-  incomes.forEach((i,index)=>{
-    let percent = totalIncome ? ((i.a/totalIncome)*100).toFixed(1) : 0;
-    incomeBody.innerHTML+=`
-    <tr>
-      <td><input value="${i.s}" onchange="updateIncome(${index},'s',this.value)"></td>
-      <td><input type="number" class="small-input" value="${i.a}" onchange="updateIncome(${index},'a',this.value)"></td>
-      <td class="percent">${percent}%</td>
-      <td><button onclick="deleteIncome(${index})">X</button></td>
-    </tr>`;
-  });
-
-  expenses.forEach((e,index)=>{
-    let percent = totalIncome ? ((e.a/totalIncome)*100).toFixed(1) : 0;
-    expenseBody.innerHTML+=`
-    <tr>
-      <td><input value="${e.c}" onchange="updateExpense(${index},'c',this.value)"></td>
-      <td><input type="number" class="small-input" value="${e.a}" onchange="updateExpense(${index},'a',this.value)"></td>
-      <td class="percent">${percent}%</td>
-      <td><button onclick="deleteExpense(${index})">X</button></td>
-    </tr>`;
-  });
-
-  if(barChart) barChart.destroy();
-  barChart=new Chart(document.getElementById("barChart"),{
-    type:'bar',
-    data:{
-      labels:["Income","Expenses"],
-      datasets:[{
-        data:[totalIncome,totalExpenses],
-        backgroundColor:["#3b82f6","#ef4444"]
-      }]
-    },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
-  });
-
-  if(pieChart) pieChart.destroy();
-  pieChart=new Chart(document.getElementById("pieChart"),{
-    type:'doughnut',
-    data:{
-      labels: expenses.map(e=>e.c),
-      datasets:[{
-        data: expenses.map(e=>e.a)
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      cutout:'65%',
-      plugins:{
-        legend:{position:'bottom'},
-        tooltip:{
-          callbacks:{
-            label:function(context){
-              let value=context.raw;
-              let percent= totalIncome ? ((value/totalIncome)*100).toFixed(1) : 0;
-              return context.label + ": " + value + " ("+percent+"%)";
-            }
-          }
-        }
+      if(c.type === "Email"){
+        icon = "📧";
+        link = `<a href="mailto:${c.value}">${c.value}</a>`;
       }
-    }
-  });
+      else if(c.type === "Website"){
+        icon = "🌐";
+        link = `<a href="${c.value}" target="_blank">${c.value}</a>`;
+      }
+      else {
+        link = `<a href="tel:${c.value}">${c.value}</a>`;
+      }
 
+      contactHTML += `
+        <div class="contact-item">
+          ${icon} ${link}
+          <button onclick="deleteContact('${name}',${index})">x</button>
+        </div>
+      `;
+    });
+
+    container.innerHTML += `
+      <div class="card">
+        <div class="card-header">
+          <span>${name}</span>
+          <span>${(contacts[name]||[]).length} contact(s)</span>
+        </div>
+
+        ${contactHTML}
+
+        <input placeholder="Phone / Email / URL" id="new_${name}">
+        <button onclick="addContact('${name}')">Add</button>
+
+        <textarea rows="2" placeholder="Notes..."
+          onchange="saveNote('${name}',this.value)">${notes[name]||""}</textarea>
+
+        <input type="date" value="${lastContacted[name]||""}"
+          onchange="saveLast('${name}',this.value)">
+      </div>
+    `;
+  });
+}
+
+function addContact(name){
+  let val = document.getElementById("new_"+name).value.trim();
+  if(!val) return;
+
+  let type = "Phone";
+  if(val.includes("@")) type="Email";
+  if(val.startsWith("http")) type="Website";
+
+  if(!contacts[name]) contacts[name] = [];
+  contacts[name].push({type:type,value:val});
+
+  saveAll();
+  render();
+}
+
+function deleteContact(name,index){
+  contacts[name].splice(index,1);
+  saveAll();
+  render();
+}
+
+function saveNote(name,value){
+  notes[name] = value;
+  saveAll();
+}
+
+function saveLast(name,value){
+  lastContacted[name] = value;
+  saveAll();
 }
 
 render();
