@@ -91,20 +91,11 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 <div class="card">
 <h3>Balance Sheet</h3>
 
-<div class="section-title">Manual Assets</div>
-<input id="assetName" placeholder="Asset Name">
-<input id="assetValue" type="number" placeholder="Amount">
-<button onclick="addAsset()">Add</button>
+<div class="section-title">Assets (Editable)</div>
 <table id="assetTable"></table>
 
-<div class="section-title">Manual Liabilities</div>
-<input id="liabName" placeholder="Liability Name">
-<input id="liabValue" type="number" placeholder="Amount">
-<button onclick="addLiability()">Add</button>
-<table id="manualLiabTable"></table>
-
-<div class="section-title">Auto Liabilities (From Payment Tracker)</div>
-<table id="autoLiabTable"></table>
+<div class="section-title">Manual Liabilities (Editable)</div>
+<table id="manualLiabilityTable"></table>
 
 <hr>
 
@@ -140,13 +131,8 @@ HSBC:101, SCB:266.35, Trust:106, UOB:200
 // ===== STORAGE =====
 let oneTimeIncome = JSON.parse(localStorage.getItem("fsOneTimeIncomeRows")) || {};
 let oneTimeExpense = JSON.parse(localStorage.getItem("fsOneTimeExpenseRows")) || {};
-let manualAssets = JSON.parse(localStorage.getItem("fsManualAssets")) || [];
-let manualLiab = JSON.parse(localStorage.getItem("fsManualLiab")) || {};
-
-function saveBalance(){
-localStorage.setItem("fsManualAssets",JSON.stringify(manualAssets));
-localStorage.setItem("fsManualLiab",JSON.stringify(manualLiab));
-}
+let assetRows = JSON.parse(localStorage.getItem("fsAssetRows")) || {};
+let manualLiabilities = JSON.parse(localStorage.getItem("fsManualLiabilities")) || {};
 
 function populateMonths(){
 let payments = JSON.parse(localStorage.getItem("payments")) || [];
@@ -172,93 +158,131 @@ return payments.filter(p=>p.monthRef===month)
 .reduce((s,p)=>s+p.amount,0);
 }
 
-function getAutoLiabilities(){
+function getDmpLiabilities(){
 let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
 let payments=JSON.parse(localStorage.getItem("payments"))||[];
-let result=[];
+let total=0;
 Object.keys(baseline).forEach(bank=>{
 let paid=payments.filter(p=>p.bank===bank)
 .reduce((s,p)=>s+p.amount,0);
 let remain=Math.max(0,baseline[bank]-paid);
-if(remain>0) result.push({bank,remain});
+total+=remain;
 });
-return result;
+return total;
 }
+
+function renderEditableRows(containerId, store, key){
+let month=document.getElementById("monthSelect").value;
+if(!store[month]) store[month]=Array.from({length:5},()=>({name:"",amount:0}));
+
+let table=document.getElementById(containerId);
+table.innerHTML="";
+
+store[month].forEach((row,index)=>{
+table.innerHTML+=`
+<tr>
+<td><input value="${row.name||""}" onchange="updateRow('${key}',${index},'name',this.value)"></td>
+<td><input type="number" value="${row.amount||0}" onchange="updateRow('${key}',${index},'amount',this.value)"></td>
+</tr>`;
+});
+}
+
+function updateRow(type,index,field,value){
+let month=document.getElementById("monthSelect").value;
+let storeMap={
+income:oneTimeIncome,
+expense:oneTimeExpense,
+asset:assetRows,
+manualLiability:manualLiabilities
+};
+let store=storeMap[type];
+if(!store[month]) store[month]=Array.from({length:5},()=>({name:"",amount:0}));
+store[month][index][field]=field==="amount"?parseFloat(value)||0:value;
+localStorage.setItem(
+type==="income"?"fsOneTimeIncomeRows":
+type==="expense"?"fsOneTimeExpenseRows":
+type==="asset"?"fsAssetRows":
+"fsManualLiabilities",
+JSON.stringify(store)
+);
+render();
+}
+
+let incomeChart=null;
+let balanceChart=null;
 
 function render(){
 
 let month=document.getElementById("monthSelect").value;
 
+renderEditableRows("oneTimeIncomeTable",oneTimeIncome,"income");
+renderEditableRows("oneTimeExpenseTable",oneTimeExpense,"expense");
+renderEditableRows("assetTable",assetRows,"asset");
+renderEditableRows("manualLiabilityTable",manualLiabilities,"manualLiability");
+
 let recurring=getRecurringIncome();
-let oneTimeIncomeTotal=(oneTimeIncome[month]||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
-let oneTimeExpenseTotal=(oneTimeExpense[month]||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
 let livingExpenses=getExpenses();
-let totalIncome=recurring+oneTimeIncomeTotal;
-let totalExpenses=livingExpenses+oneTimeExpenseTotal;
 let actual=getActual(month);
 let required=Object.values(requiredDMP).reduce((s,v)=>s+v,0);
 
-let hasActivity = totalIncome!==0 || totalExpenses!==0 || actual!==0;
+let oneIncome=(oneTimeIncome[month]||[]).reduce((s,r)=>s+r.amount,0);
+let oneExpense=(oneTimeExpense[month]||[]).reduce((s,r)=>s+r.amount,0);
+let totalIncome=recurring+oneIncome;
+let totalExpenses=livingExpenses+oneExpense;
 
-function showValue(id,value){
-document.getElementById(id).innerText=hasActivity?value.toFixed(2):"—";
-}
-
-showValue("recIncome",recurring);
-showValue("oneTimeIncomeTotal",oneTimeIncomeTotal);
-showValue("totalIncome",totalIncome);
-showValue("expenses",livingExpenses);
-showValue("oneTimeExpenseTotal",oneTimeExpenseTotal);
-showValue("preDebt",totalIncome-totalExpenses);
-showValue("required",required);
-showValue("actual",actual);
-
+let preDebt=totalIncome-totalExpenses;
 let variance=actual-required;
 let trueCF=totalIncome-totalExpenses-actual;
 
-showValue("variance",variance);
-showValue("trueCashflow",trueCF);
+document.getElementById("recIncome").innerText=recurring.toFixed(2);
+document.getElementById("oneTimeIncomeTotal").innerText=oneIncome.toFixed(2);
+document.getElementById("oneTimeExpenseTotal").innerText=oneExpense.toFixed(2);
+document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
+document.getElementById("expenses").innerText=livingExpenses.toFixed(2);
+document.getElementById("preDebt").innerText=preDebt.toFixed(2);
+document.getElementById("required").innerText=required.toFixed(2);
+document.getElementById("actual").innerText=actual.toFixed(2);
 
-// ===== BALANCE =====
-let auto=getAutoLiabilities();
-let autoTotal=auto.reduce((s,x)=>s+x.remain,0);
-let manualTotal=manualLiab.reduce((s,x)=>s+x.value,0);
-let assetTotal=manualAssets.reduce((s,x)=>s+x.value,0);
-let totalLiab=autoTotal+manualTotal;
+let varEl=document.getElementById("variance");
+varEl.innerText=variance.toFixed(2);
+varEl.className=variance>=0?"positive":"negative";
 
-showValue("assets",assetTotal);
-showValue("liabilities",totalLiab);
-showValue("netWorth",assetTotal-totalLiab);
+let cfEl=document.getElementById("trueCashflow");
+cfEl.innerText=trueCF.toFixed(2);
+cfEl.className=trueCF>=0?"positive":"negative";
 
-// ===== ADVISORY =====
-let advice="";
-if(hasActivity){
-if(variance<0) advice+="⚠ Underpaid DMP this month.<br>";
-if(variance>0) advice+="✓ Accelerating debt repayment.<br>";
-if(trueCF<0) advice+="⚠ Running deficit.<br>";
-if(trueCF>0) advice+="✓ Positive cashflow.<br>";
-}else{
-advice="No activity recorded for this month.";
-}
-document.getElementById("adviceText").innerHTML=advice;
+// BALANCE
+let totalAssets=(assetRows[month]||[]).reduce((s,r)=>s+r.amount,0);
+let manual=(manualLiabilities[month]||[]).reduce((s,r)=>s+r.amount,0);
+let dmp=getDmpLiabilities();
+let totalLiabilities=dmp+manual;
+let netWorth=totalAssets-totalLiabilities;
 
-// ===== CHARTS =====
-if(window.incomeChart) incomeChart.destroy();
-if(window.balanceChart) balanceChart.destroy();
+document.getElementById("assets").innerText=totalAssets.toFixed(2);
+document.getElementById("liabilities").innerText=totalLiabilities.toFixed(2);
 
-if(hasActivity){
+let nw=document.getElementById("netWorth");
+nw.innerText=netWorth.toFixed(2);
+nw.className=netWorth>=0?"positive":"negative";
+
+// CHARTS
+if(incomeChart) incomeChart.destroy();
 incomeChart=new Chart(document.getElementById("incomeRing"),{
 type:'doughnut',
-data:{labels:["Expenses","DMP","Remaining"],
-datasets:[{data:[totalExpenses,actual,Math.max(0,totalIncome-totalExpenses-actual)]}]}
+data:{
+labels:["Expenses","DMP","Remaining"],
+datasets:[{ data:[totalExpenses,actual,Math.max(0,totalIncome-totalExpenses-actual)] }]
+}
 });
 
+if(balanceChart) balanceChart.destroy();
 balanceChart=new Chart(document.getElementById("balanceRing"),{
 type:'doughnut',
-data:{labels:["Assets","Liabilities"],
-datasets:[{data:[assetTotal,totalLiab]}]}
-});
+data:{
+labels:["Assets","Liabilities"],
+datasets:[{ data:[totalAssets,totalLiabilities] }]
 }
+});
 
 }
 
