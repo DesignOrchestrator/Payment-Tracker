@@ -8,7 +8,7 @@
 <style>
 body { font-family: Arial; margin:0; background:#f4f6f9; }
 .container { max-width:1200px; margin:auto; padding:20px; }
-h2 { margin-bottom:20px; }
+h2 { margin-bottom:10px; }
 
 .grid {
 display:grid;
@@ -36,28 +36,17 @@ padding:6px;
 border-bottom:1px solid #eee;
 }
 
-input {
-width:90%;
-padding:4px;
-}
-
-button {
-padding:4px 8px;
-margin:3px;
-cursor:pointer;
+select {
+padding:6px;
+margin-bottom:10px;
 }
 
 .summary-number {
-font-size:18px;
 font-weight:bold;
 }
 
 .positive { color:#28a745; }
 .negative { color:#dc3545; }
-
-.chart-wrap {
-margin-top:15px;
-}
 
 .footer-advice {
 margin-top:20px;
@@ -75,6 +64,9 @@ box-shadow:0 4px 12px rgba(0,0,0,0.08);
 
 <h2>Financial Statement</h2>
 
+<label>Select Month: </label>
+<select id="monthSelect" onchange="render()"></select>
+
 <div class="grid">
 
 <!-- CASHFLOW -->
@@ -83,59 +75,26 @@ box-shadow:0 4px 12px rgba(0,0,0,0.08);
 
 <table>
 <tr><th>Total Income</th><td id="totalIncome"></td></tr>
-<tr><th>Total Expenses</th><td id="totalExpenses"></td></tr>
-<tr><th>Debt Payments (Live)</th><td id="totalDebt"></td></tr>
-<tr><th>Net Monthly Cashflow</th><td id="monthlyCashflow"></td></tr>
-<tr><th>Projected Yearly Cashflow</th><td id="yearlyCashflow"></td></tr>
+<tr><th>Living Expenses</th><td id="totalExpenses"></td></tr>
+<tr><th>Pre-Debt Surplus</th><td id="preDebt"></td></tr>
+<tr><th>Required DMP</th><td id="requiredDMP"></td></tr>
+<tr><th>Core Surplus</th><td id="coreSurplus"></td></tr>
+<tr><th>Actual DMP Paid</th><td id="actualPaid"></td></tr>
+<tr><th>Variance (Over/Under)</th><td id="variance"></td></tr>
+<tr><th>True Net Cashflow</th><td id="trueCashflow"></td></tr>
 </table>
 
-<div class="chart-wrap">
-<canvas id="cashflowChart"></canvas>
 </div>
 
-</div>
-
-<!-- BALANCE SHEET -->
+<!-- BALANCE -->
 <div class="card">
 <h3>Balance Sheet</h3>
 
-<h4>Assets</h4>
-<input placeholder="Asset Name" id="assetName">
-<input type="number" placeholder="Value" id="assetValue">
-<button onclick="addAsset()">Add</button>
-
-<table id="assetTable">
-<thead><tr><th>Name</th><th>Value</th><th></th></tr></thead>
-<tbody></tbody>
+<table>
+<tr><th>Total Assets</th><td id="totalAssets"></td></tr>
+<tr><th>Total Liabilities</th><td id="totalLiabilities"></td></tr>
+<tr><th>Net Worth</th><td id="netWorth"></td></tr>
 </table>
-
-<h4>Liabilities</h4>
-
-<!-- Auto liabilities -->
-<table id="autoLiabilityTable">
-<thead><tr><th>Debt (Auto)</th><th>Remaining</th></tr></thead>
-<tbody></tbody>
-</table>
-
-<!-- Manual liabilities -->
-<input placeholder="Liability Name" id="liabilityName">
-<input type="number" placeholder="Amount" id="liabilityValue">
-<button onclick="addLiability()">Add</button>
-
-<table id="manualLiabilityTable">
-<thead><tr><th>Name</th><th>Amount</th><th></th></tr></thead>
-<tbody></tbody>
-</table>
-
-<div style="margin-top:10px;">
-Total Assets: <span id="totalAssets" class="summary-number"></span><br>
-Total Liabilities: <span id="totalLiabilities" class="summary-number"></span><br>
-Net Worth: <span id="netWorth" class="summary-number"></span>
-</div>
-
-<div class="chart-wrap">
-<canvas id="balanceChart"></canvas>
-</div>
 
 </div>
 
@@ -150,13 +109,31 @@ Net Worth: <span id="netWorth" class="summary-number"></span>
 
 <script>
 
-// STORAGE
-let assets = JSON.parse(localStorage.getItem("fsAssets")) || [];
-let manualLiabilities = JSON.parse(localStorage.getItem("fsManualLiabilities")) || [];
+// REQUIRED DMP BASELINE
+const required = {
+"AMEX":162,
+"Citibank":384,
+"DBS":176,
+"HSBC":101,
+"SCB":266.35,
+"Trust":106,
+"UOB":200
+};
 
-function save(){
-localStorage.setItem("fsAssets",JSON.stringify(assets));
-localStorage.setItem("fsManualLiabilities",JSON.stringify(manualLiabilities));
+function getRequiredTotal(){
+let total=0;
+Object.values(required).forEach(v=> total+=v);
+return total;
+}
+
+function populateMonthDropdown(){
+let payments = JSON.parse(localStorage.getItem("payments")) || [];
+let months = [...new Set(payments.map(p=>p.monthRef))].sort();
+let select=document.getElementById("monthSelect");
+select.innerHTML="";
+months.forEach(m=>{
+select.innerHTML+=`<option value="${m}">${m}</option>`;
+});
 }
 
 function getIncome(){
@@ -173,114 +150,60 @@ expenses.forEach(e=> total+=parseFloat(e.amount||e.a||0));
 return total;
 }
 
-function getDebtPaid(){
+function getActualPaid(month){
 let payments = JSON.parse(localStorage.getItem("payments")) || [];
-return payments.reduce((sum,p)=>sum+p.amount,0);
+return payments
+.filter(p=>p.monthRef===month)
+.reduce((sum,p)=>sum+p.amount,0);
 }
 
-function getAutoLiabilities(){
+function getLiabilities(){
 let baseline = JSON.parse(localStorage.getItem("baseline")) || {};
-let payments = JSON.parse(localStorage.getItem("payments")) || [];
-let result = [];
+let payments = JSON.parse(localStorage.getItem("payments")) || {};
+let total=0;
+
 Object.keys(baseline).forEach(bank=>{
-let paid = payments.filter(p=>p.bank===bank)
+let paid=payments.filter(p=>p.bank===bank)
 .reduce((s,p)=>s+p.amount,0);
-let remain = Math.max(0, baseline[bank] - paid);
-if(remain>0){
-result.push({name:bank,value:remain});
-}
+let remain=Math.max(0,baseline[bank]-paid);
+total+=remain;
 });
-return result;
+
+return total;
 }
-
-function addAsset(){
-let name=document.getElementById("assetName").value;
-let value=parseFloat(document.getElementById("assetValue").value);
-if(!name||!value)return;
-assets.push({name,value});
-save();
-render();
-}
-
-function addLiability(){
-let name=document.getElementById("liabilityName").value;
-let value=parseFloat(document.getElementById("liabilityValue").value);
-if(!name||!value)return;
-manualLiabilities.push({name,value});
-save();
-render();
-}
-
-function deleteAsset(i){ assets.splice(i,1); save(); render(); }
-function deleteLiability(i){ manualLiabilities.splice(i,1); save(); render(); }
-
-let cashflowChart=null;
-let balanceChart=null;
 
 function render(){
 
-// CASHFLOW
+let month=document.getElementById("monthSelect").value;
+
 let income=getIncome();
 let expenses=getExpenses();
-let debt=getDebtPaid();
+let requiredDMP=getRequiredTotal();
+let actual=getActualPaid(month);
 
-let monthly=income-expenses-debt;
-let yearly=monthly*12;
+let preDebt=income-expenses;
+let coreSurplus=preDebt-requiredDMP;
+let variance=actual-requiredDMP;
+let trueCashflow=income-expenses-actual;
 
 document.getElementById("totalIncome").innerText=income.toFixed(2);
 document.getElementById("totalExpenses").innerText=expenses.toFixed(2);
-document.getElementById("totalDebt").innerText=debt.toFixed(2);
+document.getElementById("preDebt").innerText=preDebt.toFixed(2);
+document.getElementById("requiredDMP").innerText=requiredDMP.toFixed(2);
+document.getElementById("coreSurplus").innerText=coreSurplus.toFixed(2);
+document.getElementById("actualPaid").innerText=actual.toFixed(2);
 
-let mEl=document.getElementById("monthlyCashflow");
-mEl.innerText=monthly.toFixed(2);
-mEl.className=monthly>=0?"positive":"negative";
+let varEl=document.getElementById("variance");
+varEl.innerText=variance.toFixed(2);
+varEl.className=variance>=0?"positive":"negative";
 
-let yEl=document.getElementById("yearlyCashflow");
-yEl.innerText=yearly.toFixed(2);
-yEl.className=yearly>=0?"positive":"negative";
+let trueEl=document.getElementById("trueCashflow");
+trueEl.innerText=trueCashflow.toFixed(2);
+trueEl.className=trueCashflow>=0?"positive":"negative";
 
-// ASSETS
-let assetBody=document.querySelector("#assetTable tbody");
-assetBody.innerHTML="";
-let totalAssets=0;
-assets.forEach((a,i)=>{
-totalAssets+=a.value;
-assetBody.innerHTML+=`
-<tr>
-<td>${a.name}</td>
-<td>${a.value.toFixed(2)}</td>
-<td><button onclick="deleteAsset(${i})">X</button></td>
-</tr>`;
-});
-
-// LIABILITIES
-let autoLiabilities=getAutoLiabilities();
-let autoBody=document.querySelector("#autoLiabilityTable tbody");
-autoBody.innerHTML="";
-let totalLiabilities=0;
-
-autoLiabilities.forEach(l=>{
-totalLiabilities+=l.value;
-autoBody.innerHTML+=`
-<tr>
-<td>${l.name}</td>
-<td>${l.value.toFixed(2)}</td>
-</tr>`;
-});
-
-// manual liabilities
-let manualBody=document.querySelector("#manualLiabilityTable tbody");
-manualBody.innerHTML="";
-manualLiabilities.forEach((l,i)=>{
-totalLiabilities+=l.value;
-manualBody.innerHTML+=`
-<tr>
-<td>${l.name}</td>
-<td>${l.value.toFixed(2)}</td>
-<td><button onclick="deleteLiability(${i})">X</button></td>
-</tr>`;
-});
-
+// Balance
+let totalLiabilities=getLiabilities();
+let totalAssets=0; // can connect to asset module later
 let netWorth=totalAssets-totalLiabilities;
 
 document.getElementById("totalAssets").innerText=totalAssets.toFixed(2);
@@ -290,36 +213,20 @@ let nw=document.getElementById("netWorth");
 nw.innerText=netWorth.toFixed(2);
 nw.className=netWorth>=0?"positive":"negative";
 
-// ADVISORY
+// Advisory
 let advice="";
-if(monthly<0) advice+="Negative cashflow. Fix income or expenses urgently.<br>";
-if(netWorth<0) advice+="Net worth negative. Focus on debt reduction.<br>";
-if(monthly>0 && netWorth>=0) advice+="Stable base. Build income-generating assets.<br>";
+if(coreSurplus<0) advice+="Your income cannot sustain required DMP. Immediate restructuring or income increase needed.<br>";
+if(variance<0) advice+="You underpaid this month. Catch-up required.<br>";
+if(variance>0) advice+="Good. You are accelerating debt repayment.<br>";
+if(trueCashflow<0) advice+="You are running deficit after actual payments.<br>";
 document.getElementById("adviceText").innerHTML=advice;
 
-// CHARTS
-if(cashflowChart) cashflowChart.destroy();
-cashflowChart=new Chart(document.getElementById("cashflowChart"),{
-type:'bar',
-data:{
-labels:["Income","Expenses","Debt"],
-datasets:[{data:[income,expenses,debt]}]
-}
-});
-
-if(balanceChart) balanceChart.destroy();
-balanceChart=new Chart(document.getElementById("balanceChart"),{
-type:'doughnut',
-data:{
-labels:["Assets","Liabilities"],
-datasets:[{data:[totalAssets,totalLiabilities]}]
-}
-});
-
 }
 
+populateMonthDropdown();
 render();
 
 </script>
+
 </body>
 </html>
