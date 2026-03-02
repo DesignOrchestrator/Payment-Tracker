@@ -1,156 +1,93 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Bank Contact Command Center</title>
-
 <style>
-body { font-family: Arial; padding:20px; background:#f4f6f9;}
-h2 { margin-bottom:20px; }
-table { border-collapse: collapse; width:100%; background:white;}
-th, td { border:1px solid #ddd; padding:8px; text-align:left;}
-th { background:#111; color:white;}
-button { padding:4px 8px; margin:2px; cursor:pointer;}
-input, textarea { padding:4px; margin:2px; width:95%; }
-.small { font-size:12px; color:gray;}
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(135deg, #eef2f7, #f9fbff);
+  margin: 0;
+  padding: 30px;
+  color: #222;
+}
+
+h2 {
+  margin-bottom: 25px;
+  font-weight: 600;
+}
+
+#contactTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 12px;
+}
+
+#contactTable thead {
+  display: none; /* cleaner compact look */
+}
+
+#contactTable tbody tr {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  border-radius: 12px;
+}
+
+#contactTable td {
+  border: none;
+  padding: 15px;
+  vertical-align: top;
+}
+
+#contactTable td:first-child {
+  font-weight: 600;
+  font-size: 15px;
+  width: 120px;
+  color: #111;
+}
+
+button {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: #111;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+button:hover {
+  background: #333;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  font-size: 12px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+a {
+  text-decoration: none;
+  color: #0066cc;
+  font-size: 13px;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.small {
+  font-size: 11px;
+  color: #777;
+}
+
+@media (max-width: 768px) {
+  #contactTable td {
+    display: block;
+    width: 100%;
+  }
+}
 </style>
-</head>
-
-<body>
-
-<h2>Bank & CCS Contact Command Center</h2>
-
-<table id="contactTable">
-<thead>
-<tr>
-<th>Institution</th>
-<th>Contacts</th>
-<th>Add Contact</th>
-<th>Notes</th>
-<th>Last Contacted</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-
-<script>
-
-// Added CCS here
-const institutions = [
-"AMEX","Citibank","DBS","HSBC","SCB","Trust","UOB","CCS"
-];
-
-// Default contacts
-const defaultContacts = {
-"SCB":[{type:"Phone",value:"18007477000"}],
-"Citibank":[{type:"Phone",value:"62255225"}],
-"DBS":[{type:"Phone",value:"62276864"}],
-"UOB":[
-  {type:"Phone",value:"18003882121"},
-  {type:"Email",value:"Customer.Service@UOBgroup.com"}
-],
-"HSBC":[{type:"Phone",value:"66585955"}],
-"AMEX":[{type:"Phone",value:"68801515"}],
-"Trust":[],
-"CCS":[
-  {type:"Phone",value:"62555227"},
-  {type:"Website",value:"https://www.ccs.org.sg"}
-]
-};
-
-let contacts = JSON.parse(localStorage.getItem("bankContacts")) || defaultContacts;
-let notes = JSON.parse(localStorage.getItem("bankNotes")) || {};
-let lastContacted = JSON.parse(localStorage.getItem("bankLastContacted")) || {};
-
-function saveAll(){
-localStorage.setItem("bankContacts",JSON.stringify(contacts));
-localStorage.setItem("bankNotes",JSON.stringify(notes));
-localStorage.setItem("bankLastContacted",JSON.stringify(lastContacted));
-}
-
-function render(){
-
-const tbody=document.querySelector("#contactTable tbody");
-tbody.innerHTML="";
-
-institutions.forEach(name=>{
-
-let contactHTML="";
-
-(contacts[name]||[]).forEach((c,index)=>{
-
-if(c.type==="Phone"){
-contactHTML+=`📞 <a href="tel:${c.value}">${c.value}</a>
-<button onclick="deleteContact('${name}',${index})">x</button><br>`;
-}
-else if(c.type==="Email"){
-contactHTML+=`📧 <a href="mailto:${c.value}">${c.value}</a>
-<button onclick="deleteContact('${name}',${index})">x</button><br>`;
-}
-else if(c.type==="Website"){
-contactHTML+=`🌐 <a href="${c.value}" target="_blank">${c.value}</a>
-<button onclick="deleteContact('${name}',${index})">x</button><br>`;
-}
-
-});
-
-tbody.innerHTML+=`
-<tr>
-<td><b>${name}</b></td>
-<td>${contactHTML}</td>
-<td>
-<input placeholder="Phone / Email / URL" id="new_${name}">
-<button onclick="addContact('${name}')">Add</button>
-</td>
-<td>
-<textarea rows="3" onchange="saveNote('${name}',this.value)">
-${notes[name]||""}
-</textarea>
-</td>
-<td>
-<input type="date" value="${lastContacted[name]||""}" 
-onchange="saveLast('${name}',this.value)">
-</td>
-</tr>
-`;
-
-});
-
-}
-
-function addContact(name){
-let val=document.getElementById("new_"+name).value.trim();
-if(!val)return;
-
-let type="Phone";
-if(val.includes("@")) type="Email";
-if(val.startsWith("http")) type="Website";
-
-if(!contacts[name])contacts[name]=[];
-contacts[name].push({type,value:val});
-saveAll();
-render();
-}
-
-function deleteContact(name,index){
-contacts[name].splice(index,1);
-saveAll();
-render();
-}
-
-function saveNote(name,value){
-notes[name]=value;
-saveAll();
-}
-
-function saveLast(name,value){
-lastContacted[name]=value;
-saveAll();
-}
-
-render();
-
-</script>
-
-</body>
-</html>
