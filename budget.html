@@ -24,10 +24,8 @@ h1{
   align-items:flex-start;
 }
 
-/* LEFT */
 .left{ flex:1.2; }
 
-/* RIGHT */
 .right{
   flex:1;
   background:white;
@@ -91,7 +89,11 @@ th{
 
 input{
   padding:6px;
-  margin-right:5px;
+  width:90%;
+}
+
+.small-input{
+  width:80px;
 }
 
 button{
@@ -223,6 +225,20 @@ function addExpense(){
   render();
 }
 
+function updateIncome(index, field, value){
+  if(field==="s") incomes[index].s=value;
+  if(field==="a") incomes[index].a=parseFloat(value)||0;
+  saveData();
+  render();
+}
+
+function updateExpense(index, field, value){
+  if(field==="c") expenses[index].c=value;
+  if(field==="a") expenses[index].a=parseFloat(value)||0;
+  saveData();
+  render();
+}
+
 function deleteIncome(i){
   incomes.splice(i,1);
   saveData();
@@ -265,8 +281,8 @@ function render(){
   incomes.forEach((i,index)=>{
     incomeBody.innerHTML+=`
     <tr>
-      <td>${i.s}</td>
-      <td>${i.a}</td>
+      <td><input value="${i.s}" onchange="updateIncome(${index},'s',this.value)"></td>
+      <td><input type="number" class="small-input" value="${i.a}" onchange="updateIncome(${index},'a',this.value)"></td>
       <td><button onclick="deleteIncome(${index})">X</button></td>
     </tr>`;
   });
@@ -274,8 +290,8 @@ function render(){
   expenses.forEach((e,index)=>{
     expenseBody.innerHTML+=`
     <tr>
-      <td>${e.c}</td>
-      <td>${e.a}</td>
+      <td><input value="${e.c}" onchange="updateExpense(${index},'c',this.value)"></td>
+      <td><input type="number" class="small-input" value="${e.a}" onchange="updateExpense(${index},'a',this.value)"></td>
       <td><button onclick="deleteExpense(${index})">X</button></td>
     </tr>`;
   });
@@ -299,6 +315,7 @@ function render(){
     },
     options:{ plugins:{legend:{position:'bottom'}} }
   });
+
 }
 
 render();
