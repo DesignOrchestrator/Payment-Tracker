@@ -2,75 +2,169 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Financial Budget Dashboard</title>
+<title>Executive Budget Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { font-family: Arial; padding:20px; background:#f4f6f9;}
-h2 { margin-bottom:20px; }
-table { border-collapse: collapse; width:100%; background:white; margin-bottom:20px;}
-th, td { border:1px solid #ddd; padding:8px; text-align:left;}
-th { background:#111; color:white;}
-button { padding:5px 10px; margin:3px; cursor:pointer;}
-input { padding:5px; margin:3px; width:95%; }
-.summary { font-weight:bold; margin-top:10px; }
-.chart-container { width:600px; margin-top:20px;}
-.advisory { padding:15px; margin-top:15px; background:white; }
-textarea { width:100%; height:80px; }
-.negative { color:red; font-weight:bold; }
-.positive { color:green; font-weight:bold; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background:#f2f4f8;
+  margin:0;
+  padding:20px;
+}
+
+h1 {
+  text-align:center;
+  margin-bottom:25px;
+}
+
+.grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap:15px;
+  margin-bottom:20px;
+}
+
+.card {
+  background:white;
+  padding:18px;
+  border-radius:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+  margin:0 0 10px 0;
+  font-size:14px;
+  color:#777;
+}
+
+.card p {
+  font-size:22px;
+  font-weight:bold;
+  margin:0;
+}
+
+.positive { color:#16a34a; }
+.negative { color:#dc2626; }
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-bottom:20px;
+  background:white;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 4px 12px rgba(0,0,0,0.05);
+}
+
+th, td {
+  padding:10px;
+  text-align:left;
+}
+
+th {
+  background:#111827;
+  color:white;
+}
+
+input {
+  padding:6px;
+  width:95%;
+}
+
+button {
+  padding:6px 10px;
+  cursor:pointer;
+  border:none;
+  background:#2563eb;
+  color:white;
+  border-radius:6px;
+}
+
+button:hover {
+  opacity:0.9;
+}
+
+.chart-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px,1fr));
+  gap:20px;
+}
+
+textarea {
+  width:100%;
+  height:80px;
+  padding:8px;
+  border-radius:8px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>Financial Budget Dashboard</h2>
+<h1>Executive Financial Dashboard</h1>
 
-<h3>Income</h3>
+<div class="grid">
+  <div class="card">
+    <h3>Total Income</h3>
+    <p id="totalIncome">0</p>
+  </div>
+  <div class="card">
+    <h3>Total Expenses</h3>
+    <p id="totalExpenses">0</p>
+  </div>
+  <div class="card">
+    <h3>Total Debt Paid</h3>
+    <p id="totalDebt">0</p>
+  </div>
+  <div class="card">
+    <h3>Net Cashflow</h3>
+    <p id="netCashflow">0</p>
+  </div>
+</div>
+
+<h2>Income</h2>
 <input placeholder="Source" id="incomeSource">
 <input type="number" placeholder="Amount" id="incomeAmount">
 <button onclick="addIncome()">Add</button>
 
-<table id="incomeTable">
-<thead><tr><th>Source</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr></thead>
-<tbody></tbody>
+<table>
+<thead>
+<tr><th>Source</th><th>Amount</th><th>%</th><th>Delete</th></tr>
+</thead>
+<tbody id="incomeTable"></tbody>
 </table>
 
-<h3>Expenses</h3>
+<h2>Expenses</h2>
 <input placeholder="Category" id="expenseCategory">
 <input type="number" placeholder="Amount" id="expenseAmount">
 <button onclick="addExpense()">Add</button>
 
-<table id="expenseTable">
-<thead><tr><th>Category</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr></thead>
-<tbody></tbody>
+<table>
+<thead>
+<tr><th>Category</th><th>Amount</th><th>% of Income</th><th>Delete</th></tr>
+</thead>
+<tbody id="expenseTable"></tbody>
 </table>
 
-<div class="summary">
-<p>Total Income: <span id="totalIncome">0</span></p>
-<p>Total Expenses: <span id="totalExpenses">0</span></p>
-<p>Total Debt Paid (Live): <span id="totalDebt">0</span></p>
-<p>Net Monthly Cashflow: <span id="netCashflow">0</span></p>
-<p>Projected Yearly Cashflow: <span id="yearlyCashflow">0</span></p>
+<h2>Insights</h2>
+<div class="chart-grid">
+  <div class="card">
+    <canvas id="barChart"></canvas>
+  </div>
+  <div class="card">
+    <canvas id="incomePie"></canvas>
+  </div>
 </div>
 
-<div class="advisory">
-<h3>Advisory</h3>
-<div id="adviceText"></div>
-<h4>Notes</h4>
+<h2>Strategic Notes</h2>
 <textarea id="budgetNotes" onchange="saveNotes()"></textarea>
-</div>
-
-<div class="chart-container">
-<canvas id="budgetChart"></canvas>
-</div>
 
 <script>
 
 let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
 let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
 let notes = localStorage.getItem("budgetNotes") || "";
-
 document.getElementById("budgetNotes").value = notes;
 
 function save(){
@@ -83,156 +177,101 @@ localStorage.setItem("budgetNotes", document.getElementById("budgetNotes").value
 }
 
 function addIncome(){
-let source=document.getElementById("incomeSource").value;
-let amount=parseFloat(document.getElementById("incomeAmount").value);
-if(!source||!amount)return;
-incomes.push({source,amount});
-save();
-render();
+let s=document.getElementById("incomeSource").value;
+let a=parseFloat(document.getElementById("incomeAmount").value);
+if(!s||!a)return;
+incomes.push({s,a});
+save(); render();
 }
 
 function addExpense(){
-let category=document.getElementById("expenseCategory").value;
-let amount=parseFloat(document.getElementById("expenseAmount").value);
-if(!category||!amount)return;
-expenses.push({category,amount});
-save();
-render();
+let c=document.getElementById("expenseCategory").value;
+let a=parseFloat(document.getElementById("expenseAmount").value);
+if(!c||!a)return;
+expenses.push({c,a});
+save(); render();
 }
 
-function updateIncome(index,value){
-incomes[index].amount=parseFloat(value)||0;
-save();
-render();
-}
+function deleteIncome(i){ incomes.splice(i,1); save(); render(); }
+function deleteExpense(i){ expenses.splice(i,1); save(); render(); }
 
-function updateExpense(index,value){
-expenses[index].amount=parseFloat(value)||0;
-save();
-render();
-}
-
-function deleteIncome(index){
-incomes.splice(index,1);
-save();
-render();
-}
-
-function deleteExpense(index){
-expenses.splice(index,1);
-save();
-render();
-}
-
-function getDebtPaid(){
-let payments = JSON.parse(localStorage.getItem("payments")) || [];
+function getDebt(){
+let payments=JSON.parse(localStorage.getItem("payments"))||[];
 return payments.reduce((sum,p)=>sum+p.amount,0);
 }
 
-let chartInstance=null;
+let barChart, pieChart;
 
 function render(){
 
-let incomeBody=document.querySelector("#incomeTable tbody");
-incomeBody.innerHTML="";
+let incomeBody=document.getElementById("incomeTable");
+let expenseBody=document.getElementById("expenseTable");
+incomeBody.innerHTML=""; expenseBody.innerHTML="";
+
 let totalIncome=0;
+incomes.forEach(i=> totalIncome+=i.a);
+
+let totalExpenses=0;
+expenses.forEach(e=> totalExpenses+=e.a);
+
+let debt=getDebt();
+let net= totalIncome-totalExpenses-debt;
+
+document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
+document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
+document.getElementById("totalDebt").innerText=debt.toFixed(2);
+
+let netEl=document.getElementById("netCashflow");
+netEl.innerText=net.toFixed(2);
+netEl.className= net<0?"negative":"positive";
 
 incomes.forEach((i,index)=>{
-totalIncome+=i.amount;
-});
-
-incomes.forEach((i,index)=>{
-let percent = totalIncome ? ((i.amount/totalIncome)*100).toFixed(1) : 0;
+let percent= totalIncome?((i.a/totalIncome)*100).toFixed(1):0;
 incomeBody.innerHTML+=`
 <tr>
-<td>${i.source}</td>
-<td><input type="number" value="${i.amount}" onchange="updateIncome(${index},this.value)"></td>
+<td>${i.s}</td>
+<td>${i.a}</td>
 <td>${percent}%</td>
 <td><button onclick="deleteIncome(${index})">X</button></td>
 </tr>`;
 });
 
-let expenseBody=document.querySelector("#expenseTable tbody");
-expenseBody.innerHTML="";
-let totalExpenses=0;
-
 expenses.forEach((e,index)=>{
-totalExpenses+=e.amount;
-});
-
-expenses.forEach((e,index)=>{
-let percent = totalIncome ? ((e.amount/totalIncome)*100).toFixed(1) : 0;
+let percent= totalIncome?((e.a/totalIncome)*100).toFixed(1):0;
 expenseBody.innerHTML+=`
 <tr>
-<td>${e.category}</td>
-<td><input type="number" value="${e.amount}" onchange="updateExpense(${index},this.value)"></td>
+<td>${e.c}</td>
+<td>${e.a}</td>
 <td>${percent}%</td>
 <td><button onclick="deleteExpense(${index})">X</button></td>
 </tr>`;
 });
 
-let totalDebt=getDebtPaid();
-
-// NET CASHFLOW FORMULA
-// Net Cashflow = Total Income - Total Expenses - Total Debt Paid
-let net = totalIncome - totalExpenses - totalDebt;
-let yearly = net * 12;
-
-document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
-document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
-document.getElementById("totalDebt").innerText=totalDebt.toFixed(2);
-
-let netElement=document.getElementById("netCashflow");
-netElement.innerText=net.toFixed(2);
-netElement.className = net<0 ? "negative" : "positive";
-
-let yearlyElement=document.getElementById("yearlyCashflow");
-yearlyElement.innerText=yearly.toFixed(2);
-yearlyElement.className = yearly<0 ? "negative" : "positive";
-
-generateAdvice(net,totalIncome,totalExpenses,totalDebt);
-
-if(chartInstance) chartInstance.destroy();
-
-chartInstance=new Chart(document.getElementById("budgetChart"),{
+if(barChart) barChart.destroy();
+barChart=new Chart(document.getElementById("barChart"),{
 type:'bar',
 data:{
 labels:["Income","Expenses","Debt"],
 datasets:[{
-label:"Amount",
-data:[totalIncome,totalExpenses,totalDebt]
+data:[totalIncome,totalExpenses,debt]
+}]
+}
+});
+
+if(pieChart) pieChart.destroy();
+pieChart=new Chart(document.getElementById("incomePie"),{
+type:'doughnut',
+data:{
+labels: incomes.map(i=>i.s),
+datasets:[{
+data: incomes.map(i=>i.a)
 }]
 }
 });
 
 }
 
-function generateAdvice(net,income,expenses,debt){
-
-let advice="";
-
-if(net<0){
-advice+=`You are running a monthly deficit. Immediate action required.<br>`;
-if(debt>income*0.4){
-advice+=`Debt burden is very high (>40% of income). Focus on restructuring or income increase.<br>`;
-}
-if(expenses>income*0.6){
-advice+=`Expenses exceed 60% of income. Review discretionary spending.<br>`;
-}
-advice+=`Priority: Increase income or reduce expenses urgently.`;
-}
-else if(net<income*0.1){
-advice+=`You have a small surplus. Build emergency fund first (3–6 months).`;
-}
-else{
-advice+=`Healthy surplus. Allocate funds to debt acceleration and investments.`;
-}
-
-document.getElementById("adviceText").innerHTML=advice;
-}
-
 render();
-
 </script>
 </body>
 </html>
