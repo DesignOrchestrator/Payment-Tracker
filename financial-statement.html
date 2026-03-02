@@ -19,25 +19,16 @@ margin-top:15px;
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
 table { width:100%; border-collapse:collapse; font-size:14px; }
 td { padding:6px; border-bottom:1px solid #f0f0f0; }
-small { color:#666; font-size:11px; }
 input { width:95%; padding:4px; }
-button { padding:4px 8px; cursor:pointer; }
+button { padding:4px 8px; cursor:pointer; margin-top:4px; }
 .positive { color:#28a745; font-weight:bold; }
 .negative { color:#dc3545; font-weight:bold; }
 .chart-wrap { margin-top:15px; }
-.advisory {
-margin-top:20px;
-padding:15px;
-background:white;
-border-radius:12px;
-box-shadow:0 4px 15px rgba(0,0,0,0.08);
-}
 .section-title { margin-top:10px; font-weight:bold; }
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
 <div class="topbar">
@@ -51,34 +42,20 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 <div class="card">
 <h3>Cashflow</h3>
 
-<div class="section-title">One-Time Income (Editable)</div>
-<table id="oneTimeIncomeTable"></table>
-
-<div class="section-title">One-Time Expenses (Editable)</div>
-<table id="oneTimeExpenseTable"></table>
+<div class="section-title">Required DMP (Editable)</div>
+<input type="number" id="requiredInput" onchange="saveRequiredOverride()">
 
 <hr>
 
 <table>
 <tr><td>Recurring Income</td><td id="recIncome"></td></tr>
-<tr><td>Total One-Time Income</td><td id="oneTimeIncomeTotal"></td></tr>
 <tr><td>Total Income</td><td id="totalIncome"></td></tr>
 <tr><td>Living Expenses</td><td id="expenses"></td></tr>
-<tr><td>Total One-Time Expenses</td><td id="oneTimeExpenseTotal"></td></tr>
-<tr>
-<td>Pre-Debt Surplus<br><small>(Income - All Expenses)</small></td>
-<td id="preDebt"></td>
-</tr>
+<tr><td>Pre-Debt Surplus</td><td id="preDebt"></td></tr>
 <tr><td>Required DMP</td><td id="required"></td></tr>
 <tr><td>Actual Paid</td><td id="actual"></td></tr>
-<tr>
-<td>Variance<br><small>(Actual - Required)</small></td>
-<td id="variance"></td>
-</tr>
-<tr>
-<td><b>True Cashflow</b><br><small>(Income - Expenses - Actual)</small></td>
-<td id="trueCashflow"></td>
-</tr>
+<tr><td>Variance</td><td id="variance"></td></tr>
+<tr><td><b>True Cashflow</b></td><td id="trueCashflow"></td></tr>
 </table>
 
 <div class="chart-wrap">
@@ -87,9 +64,28 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 
 </div>
 
-<!-- BALANCE SHEET -->
+<!-- BALANCE -->
 <div class="card">
 <h3>Balance Sheet</h3>
+
+<div class="section-title">Add Asset</div>
+<input id="assetName" placeholder="Asset Name">
+<input type="number" id="assetValue" placeholder="Amount">
+<button onclick="addAsset()">Add Asset</button>
+
+<table id="assetTable"></table>
+
+<div class="section-title">Add Liability</div>
+<input id="liabName" placeholder="Liability Name">
+<input type="number" id="liabValue" placeholder="Amount">
+<button onclick="addLiability()">Add Liability</button>
+
+<table id="manualLiabTable"></table>
+
+<div class="section-title">Auto Liabilities (Payment Tracker)</div>
+<table id="autoLiabTable"></table>
+
+<hr>
 
 <table>
 <tr><td>Total Assets</td><td id="assets"></td></tr>
@@ -105,24 +101,17 @@ box-shadow:0 4px 15px rgba(0,0,0,0.08);
 
 </div>
 
-<div class="advisory">
-<h3>Advisory & Explanation</h3>
-<div id="adviceText"></div>
-</div>
-
-</div>
-
 <script>
 
-// ===== DMP REQUIRED =====
+// ===== DEFAULT DMP BASELINE =====
 const requiredDMP = {
 AMEX:162, Citibank:384, DBS:176,
 HSBC:101, SCB:266.35, Trust:106, UOB:200
 };
 
-// ===== STORAGE =====
-let oneTimeIncome = JSON.parse(localStorage.getItem("fsOneTimeIncomeRows")) || {};
-let oneTimeExpense = JSON.parse(localStorage.getItem("fsOneTimeExpenseRows")) || {};
+let requiredOverride = JSON.parse(localStorage.getItem("requiredOverride")) || {};
+let manualAssets = JSON.parse(localStorage.getItem("manualAssets")) || [];
+let manualLiab = JSON.parse(localStorage.getItem("manualLiab")) || {};
 
 function populateMonths(){
 let payments = JSON.parse(localStorage.getItem("payments")) || [];
@@ -132,15 +121,16 @@ select.innerHTML="";
 months.forEach(m=> select.innerHTML+=`<option value="${m}">${m}</option>`);
 }
 
-// ===== HELPERS =====
-function getRecurringIncome(){
-let data=JSON.parse(localStorage.getItem("budgetIncome"))||[];
-return data.reduce((s,i)=> s+parseFloat(i.amount||i.a||0),0);
+function saveRequiredOverride(){
+let month=document.getElementById("monthSelect").value;
+requiredOverride[month]=parseFloat(document.getElementById("requiredInput").value)||0;
+localStorage.setItem("requiredOverride",JSON.stringify(requiredOverride));
+render();
 }
 
-function getExpenses(){
-let data=JSON.parse(localStorage.getItem("budgetExpenses"))||[];
-return data.reduce((s,e)=> s+parseFloat(e.amount||e.a||0),0);
+function getRequired(month){
+if(requiredOverride[month]!==undefined) return requiredOverride[month];
+return Object.values(requiredDMP).reduce((s,v)=>s+v,0);
 }
 
 function getActual(month){
@@ -149,46 +139,47 @@ return payments.filter(p=>p.monthRef===month)
 .reduce((s,p)=>s+p.amount,0);
 }
 
-function getLiabilities(){
+function getExpenses(){
+let data=JSON.parse(localStorage.getItem("budgetExpenses"))||[];
+return data.reduce((s,e)=> s+parseFloat(e.amount||0),0);
+}
+
+function getRecurringIncome(){
+let data=JSON.parse(localStorage.getItem("budgetIncome"))||[];
+return data.reduce((s,i)=> s+parseFloat(i.amount||0),0);
+}
+
+function getAutoLiabilities(){
 let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
 let payments=JSON.parse(localStorage.getItem("payments"))||[];
-let total=0;
+let result=[];
 Object.keys(baseline).forEach(bank=>{
 let paid=payments.filter(p=>p.bank===bank)
 .reduce((s,p)=>s+p.amount,0);
 let remain=Math.max(0,baseline[bank]-paid);
-total+=remain;
+if(remain>0) result.push({bank,remain});
 });
-return total;
+return result;
 }
 
-// ===== RENDER TABLE ROWS =====
-function renderEditableRows(containerId, dataStore, type){
-let month=document.getElementById("monthSelect").value;
-if(!dataStore[month]) dataStore[month]=Array(5).fill({name:"",amount:0});
-
-let table=document.getElementById(containerId);
-table.innerHTML="";
-
-dataStore[month].forEach((row,index)=>{
-table.innerHTML+=`
-<tr>
-<td><input value="${row.name||""}" onchange="updateRow('${type}',${index},'name',this.value)"></td>
-<td><input type="number" value="${row.amount||0}" onchange="updateRow('${type}',${index},'amount',this.value)"></td>
-</tr>`;
-});
-}
-
-function updateRow(type,index,field,value){
-let month=document.getElementById("monthSelect").value;
-let store = type==="income"?oneTimeIncome:oneTimeExpense;
-if(!store[month]) store[month]=Array(5).fill({name:"",amount:0});
-store[month][index][field] = field==="amount"?parseFloat(value)||0:value;
-localStorage.setItem(type==="income"?"fsOneTimeIncomeRows":"fsOneTimeExpenseRows",JSON.stringify(store));
+function addAsset(){
+let n=document.getElementById("assetName").value;
+let v=parseFloat(document.getElementById("assetValue").value);
+if(!n||!v)return;
+manualAssets.push({name:n,value:v});
+localStorage.setItem("manualAssets",JSON.stringify(manualAssets));
 render();
 }
 
-// ===== MAIN RENDER =====
+function addLiability(){
+let n=document.getElementById("liabName").value;
+let v=parseFloat(document.getElementById("liabValue").value);
+if(!n||!v)return;
+manualLiab.push({name:n,value:v});
+localStorage.setItem("manualLiab",JSON.stringify(manualLiab));
+render();
+}
+
 let incomeChart=null;
 let balanceChart=null;
 
@@ -196,65 +187,46 @@ function render(){
 
 let month=document.getElementById("monthSelect").value;
 
-renderEditableRows("oneTimeIncomeTable",oneTimeIncome,"income");
-renderEditableRows("oneTimeExpenseTable",oneTimeExpense,"expense");
-
 let recurring=getRecurringIncome();
-let incomeRows=oneTimeIncome[month]||[];
-let expenseRows=oneTimeExpense[month]||[];
-
-let oneTimeIncomeTotal=incomeRows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
-let oneTimeExpenseTotal=expenseRows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
-
-let totalIncome=recurring+oneTimeIncomeTotal;
-let livingExpenses=getExpenses();
-let totalExpenses=livingExpenses+oneTimeExpenseTotal;
-
-let required=Object.values(requiredDMP).reduce((s,v)=>s+v,0);
+let living=getExpenses();
+let totalIncome=recurring;
+let required=getRequired(month);
 let actual=getActual(month);
 
-let preDebt=totalIncome-totalExpenses;
-let variance=actual-required;
-let trueCF=totalIncome-totalExpenses-actual;
+document.getElementById("requiredInput").value=required;
 
-// DISPLAY
+let preDebt=totalIncome-living;
+let variance=actual-required;
+let trueCF=totalIncome-living-actual;
+
 document.getElementById("recIncome").innerText=recurring.toFixed(2);
-document.getElementById("oneTimeIncomeTotal").innerText=oneTimeIncomeTotal.toFixed(2);
-document.getElementById("oneTimeExpenseTotal").innerText=oneTimeExpenseTotal.toFixed(2);
 document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
-document.getElementById("expenses").innerText=livingExpenses.toFixed(2);
+document.getElementById("expenses").innerText=living.toFixed(2);
 document.getElementById("preDebt").innerText=preDebt.toFixed(2);
 document.getElementById("required").innerText=required.toFixed(2);
 document.getElementById("actual").innerText=actual.toFixed(2);
+document.getElementById("variance").innerText=variance.toFixed(2);
+document.getElementById("trueCashflow").innerText=trueCF.toFixed(2);
 
-let varEl=document.getElementById("variance");
-varEl.innerText=variance.toFixed(2);
-varEl.className=variance>=0?"positive":"negative";
+// ===== BALANCE =====
+let auto=getAutoLiabilities();
+let autoTotal=auto.reduce((s,x)=>s+x.remain,0);
+let manualTotal=manualLiab.reduce((s,x)=>s+x.value,0);
+let assetTotal=manualAssets.reduce((s,x)=>s+x.value,0);
+let totalLiab=autoTotal+manualTotal;
 
-let cfEl=document.getElementById("trueCashflow");
-cfEl.innerText=trueCF.toFixed(2);
-cfEl.className=trueCF>=0?"positive":"negative";
+document.getElementById("assets").innerText=assetTotal.toFixed(2);
+document.getElementById("liabilities").innerText=totalLiab.toFixed(2);
+document.getElementById("netWorth").innerText=(assetTotal-totalLiab).toFixed(2);
 
-// BALANCE
-let liabilities=getLiabilities();
-let assets=0; // extend later if needed
-let netWorth=assets-liabilities;
+document.getElementById("assetTable").innerHTML=
+manualAssets.map(a=>`<tr><td>${a.name}</td><td>${a.value}</td></tr>`).join("");
 
-document.getElementById("assets").innerText=assets.toFixed(2);
-document.getElementById("liabilities").innerText=liabilities.toFixed(2);
-let nw=document.getElementById("netWorth");
-nw.innerText=netWorth.toFixed(2);
-nw.className=netWorth>=0?"positive":"negative";
+document.getElementById("manualLiabTable").innerHTML=
+manualLiab.map(l=>`<tr><td>${l.name}</td><td>${l.value}</td></tr>`).join("");
 
-// ADVISORY
-let advice="";
-if(preDebt<0) advice+="⚠ Your total expenses exceed income.<br>";
-if(variance<0) advice+="⚠ You underpaid DMP this month.<br>";
-if(variance>0) advice+="✓ You accelerated debt repayment.<br>";
-if(trueCF<0) advice+="⚠ You are running real deficit.<br>";
-if(preDebt>0 && trueCF>0) advice+="✓ Healthy structure. Consider asset building.<br>";
-
-document.getElementById("adviceText").innerHTML=advice;
+document.getElementById("autoLiabTable").innerHTML=
+auto.map(a=>`<tr><td>${a.bank}</td><td>${a.remain.toFixed(2)}</td></tr>`).join("");
 
 // CHARTS
 if(incomeChart) incomeChart.destroy();
@@ -262,9 +234,7 @@ incomeChart=new Chart(document.getElementById("incomeRing"),{
 type:'doughnut',
 data:{
 labels:["Expenses","DMP","Remaining"],
-datasets:[{
-data:[totalExpenses,actual,Math.max(0,totalIncome-totalExpenses-actual)]
-}]
+datasets:[{data:[living,actual,Math.max(0,totalIncome-living-actual)]}]
 }
 });
 
@@ -273,9 +243,7 @@ balanceChart=new Chart(document.getElementById("balanceRing"),{
 type:'doughnut',
 data:{
 labels:["Assets","Liabilities"],
-datasets:[{
-data:[assets,liabilities]
-}]
+datasets:[{data:[assetTotal,totalLiab]}]
 }
 });
 
