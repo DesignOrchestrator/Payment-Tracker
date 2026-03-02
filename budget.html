@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Monthly Budget Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: Arial; padding:20px; background:#f4f6f9;}
+h2 { margin-bottom:20px; }
+table { border-collapse: collapse; width:100%; background:white; margin-bottom:20px;}
+th, td { border:1px solid #ddd; padding:8px; text-align:left;}
+th { background:#111; color:white;}
+button { padding:5px 10px; margin:3px; cursor:pointer;}
+input { padding:5px; margin:3px;}
+.summary { font-weight:bold; margin-top:10px; }
+.chart-container { width:500px; margin-top:20px;}
+</style>
+</head>
+
+<body>
+
+<h2>Monthly Budget Dashboard</h2>
+
+<h3>Income</h3>
+<input placeholder="Source" id="incomeSource">
+<input type="number" placeholder="Amount" id="incomeAmount">
+<button onclick="addIncome()">Add</button>
+
+<table id="incomeTable">
+<thead><tr><th>Source</th><th>Amount</th><th>Delete</th></tr></thead>
+<tbody></tbody>
+</table>
+
+<h3>Expenses</h3>
+<input placeholder="Category" id="expenseCategory">
+<input type="number" placeholder="Amount" id="expenseAmount">
+<button onclick="addExpense()">Add</button>
+
+<table id="expenseTable">
+<thead><tr><th>Category</th><th>Amount</th><th>Delete</th></tr></thead>
+<tbody></tbody>
+</table>
+
+<div class="summary">
+<p>Total Income: <span id="totalIncome">0</span></p>
+<p>Total Expenses: <span id="totalExpenses">0</span></p>
+<p>Total Debt Paid (Live): <span id="totalDebt">0</span></p>
+<p>Net Cashflow: <span id="netCashflow">0</span></p>
+</div>
+
+<div class="chart-container">
+<canvas id="budgetChart"></canvas>
+</div>
+
+<script>
+
+let incomes = JSON.parse(localStorage.getItem("budgetIncome")) || [];
+let expenses = JSON.parse(localStorage.getItem("budgetExpenses")) || [];
+
+function saveBudget(){
+localStorage.setItem("budgetIncome", JSON.stringify(incomes));
+localStorage.setItem("budgetExpenses", JSON.stringify(expenses));
+}
+
+function addIncome(){
+let source=document.getElementById("incomeSource").value;
+let amount=parseFloat(document.getElementById("incomeAmount").value);
+if(!source||!amount)return;
+incomes.push({source,amount});
+saveBudget();
+render();
+}
+
+function addExpense(){
+let category=document.getElementById("expenseCategory").value;
+let amount=parseFloat(document.getElementById("expenseAmount").value);
+if(!category||!amount)return;
+expenses.push({category,amount});
+saveBudget();
+render();
+}
+
+function deleteIncome(index){
+incomes.splice(index,1);
+saveBudget();
+render();
+}
+
+function deleteExpense(index){
+expenses.splice(index,1);
+saveBudget();
+render();
+}
+
+function getDebtPaid(){
+let payments = JSON.parse(localStorage.getItem("payments")) || [];
+return payments.reduce((sum,p)=>sum+p.amount,0);
+}
+
+let chartInstance=null;
+
+function render(){
+
+let incomeBody=document.querySelector("#incomeTable tbody");
+incomeBody.innerHTML="";
+let totalIncome=0;
+
+incomes.forEach((i,index)=>{
+totalIncome+=i.amount;
+incomeBody.innerHTML+=`
+<tr>
+<td>${i.source}</td>
+<td>${i.amount.toFixed(2)}</td>
+<td><button onclick="deleteIncome(${index})">X</button></td>
+</tr>`;
+});
+
+let expenseBody=document.querySelector("#expenseTable tbody");
+expenseBody.innerHTML="";
+let totalExpenses=0;
+
+expenses.forEach((e,index)=>{
+totalExpenses+=e.amount;
+expenseBody.innerHTML+=`
+<tr>
+<td>${e.category}</td>
+<td>${e.amount.toFixed(2)}</td>
+<td><button onclick="deleteExpense(${index})">X</button></td>
+</tr>`;
+});
+
+let totalDebt=getDebtPaid();
+let net=totalIncome-totalExpenses-totalDebt;
+
+document.getElementById("totalIncome").innerText=totalIncome.toFixed(2);
+document.getElementById("totalExpenses").innerText=totalExpenses.toFixed(2);
+document.getElementById("totalDebt").innerText=totalDebt.toFixed(2);
+document.getElementById("netCashflow").innerText=net.toFixed(2);
+
+if(chartInstance) chartInstance.destroy();
+
+chartInstance=new Chart(document.getElementById("budgetChart"),{
+type:'bar',
+data:{
+labels:["Income","Expenses","Debt Paid"],
+datasets:[{
+label:"Amount",
+data:[totalIncome,totalExpenses,totalDebt]
+}]
+}
+});
+
+}
+
+render();
+
+</script>
+
+</body>
+</html>
