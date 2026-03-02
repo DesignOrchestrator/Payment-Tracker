@@ -24,12 +24,10 @@ h1{
   align-items:flex-start;
 }
 
-/* LEFT PANEL */
-.left{
-  flex:1.2;
-}
+/* LEFT */
+.left{ flex:1.2; }
 
-/* RIGHT PANEL */
+/* RIGHT */
 .right{
   flex:1;
   background:white;
@@ -107,9 +105,7 @@ button{
 
 button:hover{opacity:0.9;}
 
-.chart-box{
-  margin-bottom:30px;
-}
+.chart-box{ margin-bottom:30px; }
 
 canvas{
   width:100% !important;
@@ -193,15 +189,25 @@ canvas{
 
 <script>
 
-let incomes=[];
-let expenses=[];
-let barChart,pieChart;
+let incomes = JSON.parse(localStorage.getItem("simpleBudgetIncome")) || [];
+let expenses = JSON.parse(localStorage.getItem("simpleBudgetExpenses")) || [];
+
+let barChart, pieChart;
+
+function saveData(){
+  localStorage.setItem("simpleBudgetIncome", JSON.stringify(incomes));
+  localStorage.setItem("simpleBudgetExpenses", JSON.stringify(expenses));
+}
 
 function addIncome(){
   let s=document.getElementById("incomeSource").value;
   let a=parseFloat(document.getElementById("incomeAmount").value);
   if(!s||!a)return;
+
   incomes.push({s,a});
+  document.getElementById("incomeSource").value="";
+  document.getElementById("incomeAmount").value="";
+  saveData();
   render();
 }
 
@@ -209,12 +215,25 @@ function addExpense(){
   let c=document.getElementById("expenseCategory").value;
   let a=parseFloat(document.getElementById("expenseAmount").value);
   if(!c||!a)return;
+
   expenses.push({c,a});
+  document.getElementById("expenseCategory").value="";
+  document.getElementById("expenseAmount").value="";
+  saveData();
   render();
 }
 
-function deleteIncome(i){ incomes.splice(i,1); render(); }
-function deleteExpense(i){ expenses.splice(i,1); render(); }
+function deleteIncome(i){
+  incomes.splice(i,1);
+  saveData();
+  render();
+}
+
+function deleteExpense(i){
+  expenses.splice(i,1);
+  saveData();
+  render();
+}
 
 function render(){
 
@@ -268,10 +287,7 @@ function render(){
       labels:["Income","Expenses"],
       datasets:[{ data:[totalIncome,totalExpenses] }]
     },
-    options:{
-      plugins:{legend:{display:false}},
-      responsive:true
-    }
+    options:{ plugins:{legend:{display:false}} }
   });
 
   if(pieChart) pieChart.destroy();
@@ -281,13 +297,11 @@ function render(){
       labels: expenses.map(e=>e.c),
       datasets:[{ data: expenses.map(e=>e.a) }]
     },
-    options:{
-      responsive:true,
-      plugins:{legend:{position:'bottom'}}
-    }
+    options:{ plugins:{legend:{position:'bottom'}} }
   });
-
 }
+
+render();
 
 </script>
 
