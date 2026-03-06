@@ -15,6 +15,11 @@ body{
 
 h1{
   text-align:center;
+  margin-bottom:10px;
+}
+
+.topButtons{
+  text-align:center;
   margin-bottom:25px;
 }
 
@@ -130,6 +135,12 @@ canvas{
 
 <h1>Simple Budget</h1>
 
+<div class="topButtons">
+<button onclick="exportBackup()">Export Backup</button>
+<button onclick="importBackup()">Import Backup</button>
+<input type="file" id="importFile" style="display:none" accept=".json">
+</div>
+
 <div class="main">
 
 <div class="left">
@@ -211,6 +222,62 @@ function saveData(){
   localStorage.setItem("simpleBudgetExpenses", JSON.stringify(expenses));
 }
 
+function exportBackup(){
+
+  const data={
+    incomes:incomes,
+    expenses:expenses,
+    date:new Date().toISOString()
+  };
+
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="budget-backup.json";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(){
+  document.getElementById("importFile").click();
+}
+
+document.getElementById("importFile").addEventListener("change",function(event){
+
+  const file=event.target.files[0];
+  if(!file)return;
+
+  const reader=new FileReader();
+
+  reader.onload=function(e){
+
+    try{
+
+      const data=JSON.parse(e.target.result);
+
+      incomes=data.incomes || [];
+      expenses=data.expenses || [];
+
+      saveData();
+      render();
+
+      alert("Backup restored successfully");
+
+    }catch(err){
+
+      alert("Invalid backup file");
+
+    }
+
+  };
+
+  reader.readAsText(file);
+
+});
+
 function addIncome(){
   let s=document.getElementById("incomeSource").value;
   let a=parseFloat(document.getElementById("incomeAmount").value);
@@ -233,25 +300,35 @@ function addExpense(){
   render();
 }
 
-function updateIncome(i, field, value){
+function updateIncome(i,field,value){
   if(field==="s") incomes[i].s=value;
   if(field==="a") incomes[i].a=parseFloat(value)||0;
   saveData(); render();
 }
 
-function updateExpense(i, field, value){
+function updateExpense(i,field,value){
   if(field==="c") expenses[i].c=value;
   if(field==="a") expenses[i].a=parseFloat(value)||0;
   saveData(); render();
 }
 
-function deleteIncome(i){ incomes.splice(i,1); saveData(); render(); }
-function deleteExpense(i){ expenses.splice(i,1); saveData(); render(); }
+function deleteIncome(i){
+  incomes.splice(i,1);
+  saveData();
+  render();
+}
+
+function deleteExpense(i){
+  expenses.splice(i,1);
+  saveData();
+  render();
+}
 
 function render(){
 
   let incomeBody=document.getElementById("incomeTable");
   let expenseBody=document.getElementById("expenseTable");
+
   incomeBody.innerHTML="";
   expenseBody.innerHTML="";
 
@@ -273,7 +350,9 @@ function render(){
   yEl.className=yearlyNet<0?"negative":"positive";
 
   incomes.forEach((i,index)=>{
+
     let percent = totalIncome ? ((i.a/totalIncome)*100).toFixed(1) : 0;
+
     incomeBody.innerHTML+=`
     <tr>
       <td><input value="${i.s}" onchange="updateIncome(${index},'s',this.value)"></td>
@@ -284,7 +363,9 @@ function render(){
   });
 
   expenses.forEach((e,index)=>{
+
     let percent = totalIncome ? ((e.a/totalIncome)*100).toFixed(1) : 0;
+
     expenseBody.innerHTML+=`
     <tr>
       <td><input value="${e.c}" onchange="updateExpense(${index},'c',this.value)"></td>
@@ -295,6 +376,7 @@ function render(){
   });
 
   if(barChart) barChart.destroy();
+
   barChart=new Chart(document.getElementById("barChart"),{
     type:'bar',
     data:{
@@ -304,33 +386,23 @@ function render(){
         backgroundColor:["#3b82f6","#ef4444"]
       }]
     },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
   });
 
   if(pieChart) pieChart.destroy();
+
   pieChart=new Chart(document.getElementById("pieChart"),{
     type:'doughnut',
     data:{
-      labels: expenses.map(e=>e.c),
-      datasets:[{
-        data: expenses.map(e=>e.a)
-      }]
+      labels:expenses.map(e=>e.c),
+      datasets:[{data:expenses.map(e=>e.a)}]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
       cutout:'65%',
       plugins:{
-        legend:{position:'bottom'},
-        tooltip:{
-          callbacks:{
-            label:function(context){
-              let value=context.raw;
-              let percent= totalIncome ? ((value/totalIncome)*100).toFixed(1) : 0;
-              return context.label + ": " + value + " ("+percent+"%)";
-            }
-          }
-        }
+        legend:{position:'bottom'}
       }
     }
   });
