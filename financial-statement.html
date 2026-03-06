@@ -7,7 +7,7 @@
 <style>
 
 body{
-font-family:Arial;
+font-family:Segoe UI;
 margin:0;
 background:#f4f6f9;
 }
@@ -33,20 +33,21 @@ margin-bottom:30px;
 
 .card{
 background:white;
-border-radius:10px;
 padding:20px;
-box-shadow:0 3px 8px rgba(0,0,0,0.1);
+border-radius:10px;
+box-shadow:0 3px 10px rgba(0,0,0,0.08);
 }
 
 .card h3{
-margin-top:0;
+margin:0;
 font-size:14px;
-color:#555;
+color:#666;
 }
 
 .big{
-font-size:28px;
+font-size:26px;
 font-weight:bold;
+margin-top:8px;
 }
 
 table{
@@ -66,28 +67,16 @@ background:#222;
 color:white;
 }
 
-input{
-width:100%;
-padding:6px;
-border:1px solid #ccc;
-}
+.positive{color:#16a34a;}
+.negative{color:#dc2626;}
 
 button{
-padding:8px 16px;
-margin-top:10px;
-cursor:pointer;
-background:#28a745;
+padding:8px 14px;
+background:#2563eb;
 color:white;
 border:none;
-border-radius:4px;
-}
-
-.positive{
-color:#28a745;
-}
-
-.negative{
-color:#dc3545;
+border-radius:6px;
+cursor:pointer;
 }
 
 </style>
@@ -105,150 +94,78 @@ color:#dc3545;
 
 <div class="card">
 <h3>Total Income</h3>
-<div id="incomeTotal" class="big">$0</div>
+<div id="incomeTotal" class="big">0</div>
 </div>
 
 <div class="card">
 <h3>Total Expenses</h3>
-<div id="expenseTotal" class="big">$0</div>
+<div id="expenseTotal" class="big">0</div>
 </div>
 
 <div class="card">
-<h3>Total Assets</h3>
-<div id="assetTotal" class="big">$0</div>
+<h3>Monthly Net</h3>
+<div id="monthlyNet" class="big">0</div>
 </div>
 
 <div class="card">
 <h3>Total Liabilities</h3>
-<div id="liabilityTotal" class="big">$0</div>
+<div id="liabilityTotal" class="big">0</div>
 </div>
 
 <div class="card">
 <h3>Net Worth</h3>
-<div id="netWorth" class="big">$0</div>
+<div id="netWorth" class="big">0</div>
 </div>
 
 </div>
 
 
-<h3>Income</h3>
+<h3>Income Sources (Auto from Budget)</h3>
 
-<table>
-
+<table id="incomeTable">
 <tr>
-<th>Item</th>
+<th>Source</th>
 <th>Amount</th>
 </tr>
-
-<tr>
-<td>Salary</td>
-<td><input type="number" id="salary"></td>
-</tr>
-
-<tr>
-<td>Side Income</td>
-<td><input type="number" id="side"></td>
-</tr>
-
-<tr>
-<td>Bonus</td>
-<td><input type="number" id="bonus"></td>
-</tr>
-
-<tr>
-<td>Other</td>
-<td><input type="number" id="incomeOther"></td>
-</tr>
-
 </table>
 
 
-<h3>Expenses</h3>
+<h3>Expenses (Auto from Budget)</h3>
 
-<table>
-
+<table id="expenseTable">
 <tr>
-<th>Item</th>
+<th>Category</th>
 <th>Amount</th>
 </tr>
-
-<tr>
-<td>Living</td>
-<td><input type="number" id="living"></td>
-</tr>
-
-<tr>
-<td>Food</td>
-<td><input type="number" id="food"></td>
-</tr>
-
-<tr>
-<td>Transport</td>
-<td><input type="number" id="transport"></td>
-</tr>
-
-<tr>
-<td>Subscriptions</td>
-<td><input type="number" id="subs"></td>
-</tr>
-
-<tr>
-<td>Other</td>
-<td><input type="number" id="expOther"></td>
-</tr>
-
-</table>
-
-
-<h3>Assets</h3>
-
-<table>
-
-<tr>
-<th>Asset</th>
-<th>Amount</th>
-</tr>
-
-<tr>
-<td>Cash</td>
-<td><input type="number" id="cash"></td>
-</tr>
-
-<tr>
-<td>Savings</td>
-<td><input type="number" id="savings"></td>
-</tr>
-
-<tr>
-<td>Investments</td>
-<td><input type="number" id="invest"></td>
-</tr>
-
-<tr>
-<td>Business</td>
-<td><input type="number" id="business"></td>
-</tr>
-
 </table>
 
 
 <h3>Liabilities (Auto from Payment Tracker)</h3>
 
 <table id="debtTable">
-
 <tr>
 <th>Bank</th>
 <th>Remaining</th>
 </tr>
-
 </table>
 
-
-<button onclick="calculate()">Update Statement</button>
+<button onclick="calculate()">Refresh Financial Statement</button>
 
 </div>
 
 <script>
+
+function getBudgetIncome(){
+
+return JSON.parse(localStorage.getItem("simpleBudgetIncome")) || [];
+
+}
+
+function getBudgetExpenses(){
+
+return JSON.parse(localStorage.getItem("simpleBudgetExpenses")) || [];
+
+}
 
 function getRemainingDebt(){
 
@@ -275,7 +192,65 @@ return debts;
 
 }
 
-function renderDebtTable(){
+function renderIncome(){
+
+let incomes=getBudgetIncome();
+
+let table=document.getElementById("incomeTable");
+
+let html="<tr><th>Source</th><th>Amount</th></tr>";
+
+let total=0;
+
+incomes.forEach(i=>{
+
+html+=`
+<tr>
+<td>${i.s}</td>
+<td>${i.a.toFixed(2)}</td>
+</tr>
+`;
+
+total+=i.a;
+
+});
+
+table.innerHTML=html;
+
+return total;
+
+}
+
+function renderExpenses(){
+
+let expenses=getBudgetExpenses();
+
+let table=document.getElementById("expenseTable");
+
+let html="<tr><th>Category</th><th>Amount</th></tr>";
+
+let total=0;
+
+expenses.forEach(e=>{
+
+html+=`
+<tr>
+<td>${e.c}</td>
+<td>${e.a.toFixed(2)}</td>
+</tr>
+`;
+
+total+=e.a;
+
+});
+
+table.innerHTML=html;
+
+return total;
+
+}
+
+function renderDebts(){
 
 let debts=getRemainingDebt();
 
@@ -290,7 +265,7 @@ Object.keys(debts).forEach(bank=>{
 html+=`
 <tr>
 <td>${bank}</td>
-<td>$${debts[bank].toFixed(2)}</td>
+<td>${debts[bank].toFixed(2)}</td>
 </tr>
 `;
 
@@ -299,9 +274,9 @@ total+=debts[bank];
 });
 
 html+=`
-<tr style="font-weight:bold;">
+<tr style="font-weight:bold">
 <td>Total</td>
-<td>$${total.toFixed(2)}</td>
+<td>${total.toFixed(2)}</td>
 </tr>
 `;
 
@@ -311,53 +286,33 @@ return total;
 
 }
 
-function v(id){
-return parseFloat(document.getElementById(id).value)||0;
-}
-
 function calculate(){
 
-let income=
-v("salary")+
-v("side")+
-v("bonus")+
-v("incomeOther");
+let income=renderIncome();
+let expenses=renderExpenses();
+let liabilities=renderDebts();
 
-let expenses=
-v("living")+
-v("food")+
-v("transport")+
-v("subs")+
-v("expOther");
+let monthlyNet=income-expenses;
+let netWorth=0-liabilities;
 
-let assets=
-v("cash")+
-v("savings")+
-v("invest")+
-v("business");
+document.getElementById("incomeTotal").innerText=income.toFixed(2);
+document.getElementById("expenseTotal").innerText=expenses.toFixed(2);
 
-let liabilities=renderDebtTable();
+let m=document.getElementById("monthlyNet");
 
-let net=assets-liabilities;
+m.innerText=monthlyNet.toFixed(2);
+m.className="big "+(monthlyNet>=0?"positive":"negative");
 
-document.getElementById("incomeTotal").innerText="$"+income.toFixed(2);
-document.getElementById("expenseTotal").innerText="$"+expenses.toFixed(2);
-document.getElementById("assetTotal").innerText="$"+assets.toFixed(2);
-document.getElementById("liabilityTotal").innerText="$"+liabilities.toFixed(2);
+document.getElementById("liabilityTotal").innerText=liabilities.toFixed(2);
 
 let nw=document.getElementById("netWorth");
 
-nw.innerText="$"+net.toFixed(2);
-
-if(net>=0){
-nw.className="big positive";
-}else{
-nw.className="big negative";
-}
+nw.innerText=netWorth.toFixed(2);
+nw.className="big "+(netWorth>=0?"positive":"negative");
 
 }
 
-renderDebtTable();
+calculate();
 
 </script>
 
