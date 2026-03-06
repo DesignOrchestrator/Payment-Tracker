@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Personal Financial Statement</title>
+
+<style>
+
+body{
+font-family:Arial;
+margin:0;
+background:#f4f6f9;
+}
+
+.header{
+background:#111;
+color:white;
+padding:20px 40px;
+}
+
+.container{
+padding:30px 40px;
+max-width:1200px;
+margin:auto;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:20px;
+margin-bottom:30px;
+}
+
+.card{
+background:white;
+border-radius:10px;
+padding:20px;
+box-shadow:0 3px 8px rgba(0,0,0,0.1);
+}
+
+.card h3{
+margin-top:0;
+font-size:14px;
+color:#555;
+}
+
+.big{
+font-size:28px;
+font-weight:bold;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+background:white;
+margin-bottom:25px;
+}
+
+th,td{
+border:1px solid #ddd;
+padding:8px;
+}
+
+th{
+background:#222;
+color:white;
+}
+
+input{
+width:100%;
+padding:6px;
+border:1px solid #ccc;
+}
+
+button{
+padding:8px 16px;
+margin-top:10px;
+cursor:pointer;
+background:#28a745;
+color:white;
+border:none;
+border-radius:4px;
+}
+
+.positive{
+color:#28a745;
+}
+
+.negative{
+color:#dc3545;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">
+<h2>Personal Financial Statement</h2>
+</div>
+
+<div class="container">
+
+<div class="grid">
+
+<div class="card">
+<h3>Total Income</h3>
+<div id="incomeTotal" class="big">$0</div>
+</div>
+
+<div class="card">
+<h3>Total Expenses</h3>
+<div id="expenseTotal" class="big">$0</div>
+</div>
+
+<div class="card">
+<h3>Total Assets</h3>
+<div id="assetTotal" class="big">$0</div>
+</div>
+
+<div class="card">
+<h3>Total Liabilities</h3>
+<div id="liabilityTotal" class="big">$0</div>
+</div>
+
+<div class="card">
+<h3>Net Worth</h3>
+<div id="netWorth" class="big">$0</div>
+</div>
+
+</div>
+
+
+<h3>Income</h3>
+
+<table>
+
+<tr>
+<th>Item</th>
+<th>Amount</th>
+</tr>
+
+<tr>
+<td>Salary</td>
+<td><input type="number" id="salary"></td>
+</tr>
+
+<tr>
+<td>Side Income</td>
+<td><input type="number" id="side"></td>
+</tr>
+
+<tr>
+<td>Bonus</td>
+<td><input type="number" id="bonus"></td>
+</tr>
+
+<tr>
+<td>Other</td>
+<td><input type="number" id="incomeOther"></td>
+</tr>
+
+</table>
+
+
+<h3>Expenses</h3>
+
+<table>
+
+<tr>
+<th>Item</th>
+<th>Amount</th>
+</tr>
+
+<tr>
+<td>Living</td>
+<td><input type="number" id="living"></td>
+</tr>
+
+<tr>
+<td>Food</td>
+<td><input type="number" id="food"></td>
+</tr>
+
+<tr>
+<td>Transport</td>
+<td><input type="number" id="transport"></td>
+</tr>
+
+<tr>
+<td>Subscriptions</td>
+<td><input type="number" id="subs"></td>
+</tr>
+
+<tr>
+<td>Other</td>
+<td><input type="number" id="expOther"></td>
+</tr>
+
+</table>
+
+
+<h3>Assets</h3>
+
+<table>
+
+<tr>
+<th>Asset</th>
+<th>Amount</th>
+</tr>
+
+<tr>
+<td>Cash</td>
+<td><input type="number" id="cash"></td>
+</tr>
+
+<tr>
+<td>Savings</td>
+<td><input type="number" id="savings"></td>
+</tr>
+
+<tr>
+<td>Investments</td>
+<td><input type="number" id="invest"></td>
+</tr>
+
+<tr>
+<td>Business</td>
+<td><input type="number" id="business"></td>
+</tr>
+
+</table>
+
+
+<h3>Liabilities (Auto from Payment Tracker)</h3>
+
+<table id="debtTable">
+
+<tr>
+<th>Bank</th>
+<th>Remaining</th>
+</tr>
+
+</table>
+
+
+<button onclick="calculate()">Update Statement</button>
+
+</div>
+
+<script>
+
+function getRemainingDebt(){
+
+let payments=JSON.parse(localStorage.getItem("payments"))||[];
+let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
+
+let debts={};
+
+Object.keys(baseline).forEach(bank=>{
+
+let base=baseline[bank];
+
+let paid=payments
+.filter(p=>p.bank===bank)
+.reduce((s,p)=>s+p.amount,0);
+
+let remaining=Math.max(0,base-paid);
+
+debts[bank]=remaining;
+
+});
+
+return debts;
+
+}
+
+function renderDebtTable(){
+
+let debts=getRemainingDebt();
+
+let table=document.getElementById("debtTable");
+
+let html="<tr><th>Bank</th><th>Remaining</th></tr>";
+
+let total=0;
+
+Object.keys(debts).forEach(bank=>{
+
+html+=`
+<tr>
+<td>${bank}</td>
+<td>$${debts[bank].toFixed(2)}</td>
+</tr>
+`;
+
+total+=debts[bank];
+
+});
+
+html+=`
+<tr style="font-weight:bold;">
+<td>Total</td>
+<td>$${total.toFixed(2)}</td>
+</tr>
+`;
+
+table.innerHTML=html;
+
+return total;
+
+}
+
+function v(id){
+return parseFloat(document.getElementById(id).value)||0;
+}
+
+function calculate(){
+
+let income=
+v("salary")+
+v("side")+
+v("bonus")+
+v("incomeOther");
+
+let expenses=
+v("living")+
+v("food")+
+v("transport")+
+v("subs")+
+v("expOther");
+
+let assets=
+v("cash")+
+v("savings")+
+v("invest")+
+v("business");
+
+let liabilities=renderDebtTable();
+
+let net=assets-liabilities;
+
+document.getElementById("incomeTotal").innerText="$"+income.toFixed(2);
+document.getElementById("expenseTotal").innerText="$"+expenses.toFixed(2);
+document.getElementById("assetTotal").innerText="$"+assets.toFixed(2);
+document.getElementById("liabilityTotal").innerText="$"+liabilities.toFixed(2);
+
+let nw=document.getElementById("netWorth");
+
+nw.innerText="$"+net.toFixed(2);
+
+if(net>=0){
+nw.className="big positive";
+}else{
+nw.className="big negative";
+}
+
+}
+
+renderDebtTable();
+
+</script>
+
+</body>
+</html>
