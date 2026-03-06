@@ -82,12 +82,6 @@ padding:8px;
 border-bottom:1px solid #eee;
 }
 
-th{
-text-align:left;
-font-size:13px;
-color:#666;
-}
-
 input{
 padding:6px;
 width:90%;
@@ -107,11 +101,6 @@ height:300px;
 margin-top:10px;
 }
 
-.topButtons{
-text-align:right;
-margin-bottom:15px;
-}
-
 .progress{
 height:20px;
 background:#ddd;
@@ -126,6 +115,11 @@ background:#16a34a;
 text-align:center;
 color:white;
 font-size:12px;
+}
+
+.topButtons{
+text-align:right;
+margin-bottom:15px;
 }
 
 </style>
@@ -185,6 +179,14 @@ font-size:12px;
 </div>
 </div>
 
+<div class="card">
+<h3>Debt Payoff</h3>
+<div id="debtPercent" class="big">0%</div>
+<div class="progress">
+<div id="debtBar" class="progress-bar">0%</div>
+</div>
+</div>
+
 </div>
 
 <div class="flex">
@@ -200,19 +202,10 @@ font-size:12px;
 <button onclick="addAsset()">Add</button>
 
 <table>
-<thead>
-<tr>
-<th>Asset</th>
-<th>Value</th>
-<th></th>
-</tr>
-</thead>
-
 <tbody id="assetTable"></tbody>
 </table>
 
 </div>
-
 
 <div class="section">
 
@@ -223,15 +216,6 @@ font-size:12px;
 <button onclick="addLiability()">Add</button>
 
 <table>
-
-<thead>
-<tr>
-<th>Liability</th>
-<th>Amount</th>
-<th></th>
-</tr>
-</thead>
-
 <tbody id="liabTable"></tbody>
 </table>
 
@@ -241,57 +225,38 @@ font-size:12px;
 
 <h3>Passive Income</h3>
 
-<input id="passiveName" placeholder="Income source">
+<input id="passiveName" placeholder="Source">
 <input id="passiveValue" type="number" placeholder="Amount">
 <button onclick="addPassive()">Add</button>
 
 <table>
-
-<thead>
-<tr>
-<th>Source</th>
-<th>Amount</th>
-<th></th>
-</tr>
-</thead>
-
 <tbody id="passiveTable"></tbody>
-
 </table>
 
 </div>
 
 </div>
 
-
 <div class="right">
 
 <div class="section">
-
 <h3>Income vs Expenses</h3>
-
-<div class="chartBox">
-<canvas id="cashChart"></canvas>
-</div>
-
+<div class="chartBox"><canvas id="cashChart"></canvas></div>
 </div>
 
 <div class="section">
-
 <h3>Net Worth Composition</h3>
-
-<div class="chartBox">
-<canvas id="netChart"></canvas>
-</div>
-
+<div class="chartBox"><canvas id="netChart"></canvas></div>
 </div>
 
 <div class="section">
-
 <h3>Passive Income Sources</h3>
+<div class="chartBox"><canvas id="passiveChart"></canvas></div>
+</div>
 
-<div class="chartBox">
-<canvas id="passiveChart"></canvas>
+<div class="section">
+<h3>Net Worth Growth</h3>
+<div class="chartBox"><canvas id="growthChart"></canvas></div>
 </div>
 
 </div>
@@ -299,32 +264,35 @@ font-size:12px;
 </div>
 
 </div>
-
-</div>
-
 
 <script>
 
 let assets=JSON.parse(localStorage.getItem("fsAssets"))||[];
 let liabilities=JSON.parse(localStorage.getItem("fsLiabilities"))||[];
 let passive=JSON.parse(localStorage.getItem("fsPassiveIncome"))||[];
+let history=JSON.parse(localStorage.getItem("fsNetWorthHistory"))||[];
 
 function save(){
 
 localStorage.setItem("fsAssets",JSON.stringify(assets));
 localStorage.setItem("fsLiabilities",JSON.stringify(liabilities));
 localStorage.setItem("fsPassiveIncome",JSON.stringify(passive));
+localStorage.setItem("fsNetWorthHistory",JSON.stringify(history));
 
 }
 
 function getIncome(){
+
 let incomes=JSON.parse(localStorage.getItem("simpleBudgetIncome"))||[];
 return incomes.reduce((s,i)=>s+i.a,0);
+
 }
 
 function getExpenses(){
+
 let expenses=JSON.parse(localStorage.getItem("simpleBudgetExpenses"))||[];
 return expenses.reduce((s,e)=>s+e.a,0);
+
 }
 
 function getDebt(){
@@ -333,19 +301,20 @@ let payments=JSON.parse(localStorage.getItem("payments"))||[];
 let baseline=JSON.parse(localStorage.getItem("baseline"))||{};
 
 let total=0;
+let paid=0;
 
 Object.keys(baseline).forEach(bank=>{
 
 let base=baseline[bank];
+let p=payments.filter(x=>x.bank===bank)
+.reduce((s,x)=>s+x.amount,0);
 
-let paid=payments.filter(p=>p.bank===bank)
-.reduce((s,p)=>s+p.amount,0);
-
-total+=Math.max(0,base-paid);
+total+=base;
+paid+=p;
 
 });
 
-return total;
+return {total,paid};
 
 }
 
@@ -371,8 +340,7 @@ assetBody.innerHTML+=`
 <td>${a.n}</td>
 <td>${a.v}</td>
 <td><button onclick="deleteAsset(${i})">X</button></td>
-</tr>
-`;
+</tr>`;
 });
 
 liabilities.forEach((l,i)=>{
@@ -383,8 +351,7 @@ liabBody.innerHTML+=`
 <td>${l.n}</td>
 <td>${l.v}</td>
 <td><button onclick="deleteLiability(${i})">X</button></td>
-</tr>
-`;
+</tr>`;
 });
 
 passive.forEach((p,i)=>{
@@ -395,8 +362,7 @@ passiveBody.innerHTML+=`
 <td>${p.n}</td>
 <td>${p.v}</td>
 <td><button onclick="deletePassive(${i})">X</button></td>
-</tr>
-`;
+</tr>`;
 });
 
 let debt=getDebt();
@@ -404,15 +370,15 @@ let debt=getDebt();
 let income=getIncome();
 let expenses=getExpenses();
 
-let totalLiab=debt+extraLiab;
+let totalLiab=(debt.total-debt.paid)+extraLiab;
 
 let netWorth=assetTotal-totalLiab;
 
 document.getElementById("incomeTotal").innerText=income.toFixed(2);
 document.getElementById("expenseTotal").innerText=expenses.toFixed(2);
+document.getElementById("passiveTotal").innerText=passiveTotal.toFixed(2);
 document.getElementById("assetTotal").innerText=assetTotal.toFixed(2);
 document.getElementById("liabilityTotal").innerText=totalLiab.toFixed(2);
-document.getElementById("passiveTotal").innerText=passiveTotal.toFixed(2);
 
 let nw=document.getElementById("netWorth");
 nw.innerText=netWorth.toFixed(2);
@@ -422,60 +388,90 @@ let freedom=expenses?((passiveTotal/expenses)*100):0;
 
 document.getElementById("freedomPercent").innerText=freedom.toFixed(1)+"%";
 
-let bar=document.getElementById("freedomBar");
-bar.style.width=freedom+"%";
-bar.innerText=freedom.toFixed(1)+"%";
+let fbar=document.getElementById("freedomBar");
+fbar.style.width=freedom+"%";
+fbar.innerText=freedom.toFixed(1)+"%";
+
+let debtPercent=(debt.total?((debt.paid/debt.total)*100):0);
+
+document.getElementById("debtPercent").innerText=debtPercent.toFixed(1)+"%";
+
+let dbar=document.getElementById("debtBar");
+dbar.style.width=debtPercent+"%";
+dbar.innerText=debtPercent.toFixed(1)+"%";
+
+updateHistory(netWorth);
 
 drawCharts(income,expenses,assetTotal,totalLiab,passive);
 
 }
 
+function updateHistory(netWorth){
+
+let month=new Date().toISOString().slice(0,7);
+
+let existing=history.find(h=>h.month===month);
+
+if(!existing){
+
+history.push({
+month,
+netWorth
+});
+
+save();
+
+}
+
+}
+
 function addAsset(){
+
 let n=document.getElementById("assetName").value;
 let v=parseFloat(document.getElementById("assetValue").value);
+
 if(!n||!v)return;
+
 assets.push({n,v});
+
 save();
 render();
+
 }
 
 function addLiability(){
+
 let n=document.getElementById("liabName").value;
 let v=parseFloat(document.getElementById("liabValue").value);
+
 if(!n||!v)return;
+
 liabilities.push({n,v});
+
 save();
 render();
+
 }
 
 function addPassive(){
+
 let n=document.getElementById("passiveName").value;
 let v=parseFloat(document.getElementById("passiveValue").value);
+
 if(!n||!v)return;
+
 passive.push({n,v});
+
 save();
 render();
+
 }
 
-function deleteAsset(i){
-assets.splice(i,1);
-save();
-render();
-}
+function deleteAsset(i){ assets.splice(i,1); save(); render(); }
+function deleteLiability(i){ liabilities.splice(i,1); save(); render(); }
+function deletePassive(i){ passive.splice(i,1); save(); render(); }
 
-function deleteLiability(i){
-liabilities.splice(i,1);
-save();
-render();
-}
-
-function deletePassive(i){
-passive.splice(i,1);
-save();
-render();
-}
-
-let cashChart,netChart,passiveChart;
+let cashChart,netChart,passiveChart,growthChart;
 
 function drawCharts(income,expenses,assets,liab,passive){
 
@@ -512,6 +508,21 @@ datasets:[{data:passive.map(p=>p.v)}]
 options:{responsive:true,maintainAspectRatio:false,cutout:'65%'}
 });
 
+if(growthChart) growthChart.destroy();
+
+growthChart=new Chart(document.getElementById("growthChart"),{
+type:'line',
+data:{
+labels:history.map(h=>h.month),
+datasets:[{
+label:"Net Worth",
+data:history.map(h=>h.netWorth),
+fill:false
+}]
+},
+options:{responsive:true,maintainAspectRatio:false}
+});
+
 }
 
 function exportBackup(){
@@ -519,13 +530,16 @@ function exportBackup(){
 const data={
 assets,
 liabilities,
-passive
+passive,
+history
 };
 
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+
 const url=URL.createObjectURL(blob);
 
 const a=document.createElement("a");
+
 a.href=url;
 a.download="financial-statement-backup.json";
 a.click();
@@ -533,7 +547,9 @@ a.click();
 }
 
 function importBackup(){
+
 document.getElementById("importFile").click();
+
 }
 
 document.getElementById("importFile").addEventListener("change",function(e){
@@ -550,6 +566,7 @@ let data=JSON.parse(evt.target.result);
 assets=data.assets||[];
 liabilities=data.liabilities||[];
 passive=data.passive||[];
+history=data.history||[];
 
 save();
 render();
