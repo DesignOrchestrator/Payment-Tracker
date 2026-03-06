@@ -28,7 +28,7 @@ margin:auto;
 
 .grid{
 display:grid;
-grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
 gap:20px;
 margin-bottom:25px;
 }
@@ -102,8 +102,6 @@ border-radius:6px;
 cursor:pointer;
 }
 
-button:hover{opacity:0.9}
-
 .chartBox{
 height:300px;
 margin-top:10px;
@@ -112,6 +110,22 @@ margin-top:10px;
 .topButtons{
 text-align:right;
 margin-bottom:15px;
+}
+
+.progress{
+height:20px;
+background:#ddd;
+border-radius:10px;
+overflow:hidden;
+margin-top:6px;
+}
+
+.progress-bar{
+height:100%;
+background:#16a34a;
+text-align:center;
+color:white;
+font-size:12px;
 }
 
 </style>
@@ -144,6 +158,11 @@ margin-bottom:15px;
 </div>
 
 <div class="card">
+<h3>Passive Income</h3>
+<div id="passiveTotal" class="big">0</div>
+</div>
+
+<div class="card">
 <h3>Assets</h3>
 <div id="assetTotal" class="big">0</div>
 </div>
@@ -156,6 +175,14 @@ margin-bottom:15px;
 <div class="card">
 <h3>Net Worth</h3>
 <div id="netWorth" class="big">0</div>
+</div>
+
+<div class="card">
+<h3>Financial Freedom</h3>
+<div id="freedomPercent" class="big">0%</div>
+<div class="progress">
+<div id="freedomBar" class="progress-bar">0%</div>
+</div>
 </div>
 
 </div>
@@ -182,7 +209,6 @@ margin-bottom:15px;
 </thead>
 
 <tbody id="assetTable"></tbody>
-
 </table>
 
 </div>
@@ -207,6 +233,29 @@ margin-bottom:15px;
 </thead>
 
 <tbody id="liabTable"></tbody>
+</table>
+
+</div>
+
+<div class="section">
+
+<h3>Passive Income</h3>
+
+<input id="passiveName" placeholder="Income source">
+<input id="passiveValue" type="number" placeholder="Amount">
+<button onclick="addPassive()">Add</button>
+
+<table>
+
+<thead>
+<tr>
+<th>Source</th>
+<th>Amount</th>
+<th></th>
+</tr>
+</thead>
+
+<tbody id="passiveTable"></tbody>
 
 </table>
 
@@ -237,6 +286,16 @@ margin-bottom:15px;
 
 </div>
 
+<div class="section">
+
+<h3>Passive Income Sources</h3>
+
+<div class="chartBox">
+<canvas id="passiveChart"></canvas>
+</div>
+
+</div>
+
 </div>
 
 </div>
@@ -248,28 +307,24 @@ margin-bottom:15px;
 
 let assets=JSON.parse(localStorage.getItem("fsAssets"))||[];
 let liabilities=JSON.parse(localStorage.getItem("fsLiabilities"))||[];
+let passive=JSON.parse(localStorage.getItem("fsPassiveIncome"))||[];
 
 function save(){
 
 localStorage.setItem("fsAssets",JSON.stringify(assets));
 localStorage.setItem("fsLiabilities",JSON.stringify(liabilities));
+localStorage.setItem("fsPassiveIncome",JSON.stringify(passive));
 
 }
 
 function getIncome(){
-
 let incomes=JSON.parse(localStorage.getItem("simpleBudgetIncome"))||[];
-
 return incomes.reduce((s,i)=>s+i.a,0);
-
 }
 
 function getExpenses(){
-
 let expenses=JSON.parse(localStorage.getItem("simpleBudgetExpenses"))||[];
-
 return expenses.reduce((s,e)=>s+e.a,0);
-
 }
 
 function getDebt(){
@@ -296,16 +351,19 @@ return total;
 
 function render(){
 
+let assetTotal=0;
+let extraLiab=0;
+let passiveTotal=0;
+
 let assetBody=document.getElementById("assetTable");
 let liabBody=document.getElementById("liabTable");
+let passiveBody=document.getElementById("passiveTable");
 
 assetBody.innerHTML="";
 liabBody.innerHTML="";
-
-let assetTotal=0;
+passiveBody.innerHTML="";
 
 assets.forEach((a,i)=>{
-
 assetTotal+=a.v;
 
 assetBody.innerHTML+=`
@@ -315,13 +373,9 @@ assetBody.innerHTML+=`
 <td><button onclick="deleteAsset(${i})">X</button></td>
 </tr>
 `;
-
 });
 
-let extraLiab=0;
-
 liabilities.forEach((l,i)=>{
-
 extraLiab+=l.v;
 
 liabBody.innerHTML+=`
@@ -331,7 +385,18 @@ liabBody.innerHTML+=`
 <td><button onclick="deleteLiability(${i})">X</button></td>
 </tr>
 `;
+});
 
+passive.forEach((p,i)=>{
+passiveTotal+=p.v;
+
+passiveBody.innerHTML+=`
+<tr>
+<td>${p.n}</td>
+<td>${p.v}</td>
+<td><button onclick="deletePassive(${i})">X</button></td>
+</tr>
+`;
 });
 
 let debt=getDebt();
@@ -347,100 +412,104 @@ document.getElementById("incomeTotal").innerText=income.toFixed(2);
 document.getElementById("expenseTotal").innerText=expenses.toFixed(2);
 document.getElementById("assetTotal").innerText=assetTotal.toFixed(2);
 document.getElementById("liabilityTotal").innerText=totalLiab.toFixed(2);
+document.getElementById("passiveTotal").innerText=passiveTotal.toFixed(2);
 
 let nw=document.getElementById("netWorth");
-
 nw.innerText=netWorth.toFixed(2);
 nw.className="big "+(netWorth>=0?"positive":"negative");
 
-drawCharts(income,expenses,assetTotal,totalLiab);
+let freedom=expenses?((passiveTotal/expenses)*100):0;
+
+document.getElementById("freedomPercent").innerText=freedom.toFixed(1)+"%";
+
+let bar=document.getElementById("freedomBar");
+bar.style.width=freedom+"%";
+bar.innerText=freedom.toFixed(1)+"%";
+
+drawCharts(income,expenses,assetTotal,totalLiab,passive);
 
 }
 
 function addAsset(){
-
 let n=document.getElementById("assetName").value;
 let v=parseFloat(document.getElementById("assetValue").value);
-
 if(!n||!v)return;
-
 assets.push({n,v});
-
 save();
 render();
-
 }
 
 function addLiability(){
-
 let n=document.getElementById("liabName").value;
 let v=parseFloat(document.getElementById("liabValue").value);
-
 if(!n||!v)return;
-
 liabilities.push({n,v});
-
 save();
 render();
+}
 
+function addPassive(){
+let n=document.getElementById("passiveName").value;
+let v=parseFloat(document.getElementById("passiveValue").value);
+if(!n||!v)return;
+passive.push({n,v});
+save();
+render();
 }
 
 function deleteAsset(i){
-
 assets.splice(i,1);
 save();
 render();
-
 }
 
 function deleteLiability(i){
-
 liabilities.splice(i,1);
 save();
 render();
-
 }
 
-let cashChart,netChart;
+function deletePassive(i){
+passive.splice(i,1);
+save();
+render();
+}
 
-function drawCharts(income,expenses,assets,liab){
+let cashChart,netChart,passiveChart;
+
+function drawCharts(income,expenses,assets,liab,passive){
 
 if(cashChart) cashChart.destroy();
 
 cashChart=new Chart(document.getElementById("cashChart"),{
-
 type:'bar',
-
 data:{
 labels:["Income","Expenses"],
 datasets:[{data:[income,expenses]}]
 },
-
-options:{
-responsive:true,
-maintainAspectRatio:false,
-plugins:{legend:{display:false}}
-}
-
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
 });
 
 if(netChart) netChart.destroy();
 
 netChart=new Chart(document.getElementById("netChart"),{
-
 type:'doughnut',
-
 data:{
 labels:["Assets","Liabilities"],
 datasets:[{data:[assets,liab]}]
 },
+options:{responsive:true,maintainAspectRatio:false,cutout:'65%'}
+});
 
-options:{
-responsive:true,
-maintainAspectRatio:false,
-cutout:'65%'
-}
+if(passiveChart) passiveChart.destroy();
 
+passiveChart=new Chart(document.getElementById("passiveChart"),{
+type:'doughnut',
+data:{
+labels:passive.map(p=>p.n),
+datasets:[{data:passive.map(p=>p.v)}]
+},
+options:{responsive:true,maintainAspectRatio:false,cutout:'65%'}
 });
 
 }
@@ -449,15 +518,14 @@ function exportBackup(){
 
 const data={
 assets,
-liabilities
+liabilities,
+passive
 };
 
 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-
 const url=URL.createObjectURL(blob);
 
 const a=document.createElement("a");
-
 a.href=url;
 a.download="financial-statement-backup.json";
 a.click();
@@ -465,15 +533,12 @@ a.click();
 }
 
 function importBackup(){
-
 document.getElementById("importFile").click();
-
 }
 
 document.getElementById("importFile").addEventListener("change",function(e){
 
 let file=e.target.files[0];
-
 if(!file)return;
 
 let reader=new FileReader();
@@ -484,6 +549,7 @@ let data=JSON.parse(evt.target.result);
 
 assets=data.assets||[];
 liabilities=data.liabilities||[];
+passive=data.passive||[];
 
 save();
 render();
